@@ -1,19 +1,11 @@
 package com.theveloper.pixelplay.data.repository
 
 import com.theveloper.pixelplay.data.database.MusicDao
-import com.theveloper.pixelplay.data.network.deezer.DeezerApiService
-import com.theveloper.pixelplay.data.network.deezer.DeezerArtist
-import com.theveloper.pixelplay.data.network.deezer.DeezerSearchResponse
 import io.mockk.coEvery
-import io.mockk.coJustRun
-import io.mockk.coVerify
 import io.mockk.mockk
-import java.util.concurrent.atomic.AtomicInteger
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -33,49 +25,28 @@ class ArtistImageRepositoryTest {
     }
 
     @Test
-    fun `cancelled prefetch does not mark artist as failed for the session`() = runTest {
-        val deezerApiService = mockk<DeezerApiService>()
+    fun `returns null when no local artist image is cached`() = runTest {
         val musicDao = mockk<MusicDao>()
-        val repository = ArtistImageRepository(deezerApiService, musicDao)
-        val firstAttemptStarted = CompletableDeferred<Unit>()
-        val searchAttempts = AtomicInteger(0)
-        val rawUrl = "https://cdn-images.dzcdn.net/images/artist/250x250-000000-80-0-0.jpg"
-        val upgradedUrl = "https://cdn-images.dzcdn.net/images/artist/1000x1000-000000-80-0-0.jpg"
+        val repository = ArtistImageRepository(musicDao)
 
         coEvery { musicDao.getArtistIdByNormalizedName("Artist Name") } returns 42L
         coEvery { musicDao.getArtistImageUrl(42L) } returns null
         coEvery { musicDao.getArtistImageUrlByNormalizedName("Artist Name") } returns null
-        coJustRun { musicDao.updateArtistImageUrl(42L, any()) }
-        coEvery { deezerApiService.searchArtist("Artist Name", 1) } coAnswers {
-            when (searchAttempts.incrementAndGet()) {
-                1 -> {
-                    firstAttemptStarted.complete(Unit)
-                    awaitCancellation()
-                }
 
-                else -> DeezerSearchResponse(
-                    data = listOf(
-                        DeezerArtist(
-                            id = 7L,
-                            name = "Artist Name",
-                            pictureBig = rawUrl
-                        )
-                    )
-                )
-            }
-        }
+        assertNull(repository.getArtistImageUrl("Artist Name", 42L))
+    }
 
-        val prefetchJob = launch {
-            repository.prefetchArtistImages(listOf(42L to "Artist Name"))
-        }
-        firstAttemptStarted.await()
-        prefetchJob.cancel()
-        prefetchJob.join()
+    @Test
+    fun `returns locally cached artist image`() = runTest {
+        val musicDao = mockk<MusicDao>()
+        val repository = ArtistImageRepository(musicDao)
+        val cachedUrl = "file:///artist/cache.jpg"
+
+        coEvery { musicDao.getArtistIdByNormalizedName("Artist Name") } returns 42L
+        coEvery { musicDao.getArtistImageUrl(42L) } returns cachedUrl
 
         val imageUrl = repository.getArtistImageUrl("Artist Name", 42L)
 
-        assertEquals(upgradedUrl, imageUrl)
-        assertEquals(2, searchAttempts.get())
-        coVerify(exactly = 1) { musicDao.updateArtistImageUrl(42L, upgradedUrl) }
+        assertEquals(cachedUrl, imageUrl)
     }
 }

@@ -42,17 +42,10 @@ class PlaylistPreferencesRepository @Inject constructor(
     val playlistSongOrderModesFlow: Flow<Map<String, String>> =
         userPreferencesRepository.playlistSongOrderModesFlow
     val playlistsSortOptionFlow: Flow<String> = userPreferencesRepository.playlistsSortOptionFlow
-    val showTelegramCloudPlaylistsFlow: Flow<Boolean> =
-        userPreferencesRepository.showTelegramCloudPlaylistsFlow
-    val telegramTopicDisplayModeFlow: Flow<TelegramTopicDisplayMode> =
-        userPreferencesRepository.telegramTopicDisplayModeFlow
-    suspend fun setTelegramTopicDisplayMode(mode: TelegramTopicDisplayMode) =
-        userPreferencesRepository.setTelegramTopicDisplayMode(mode)
 
     suspend fun createPlaylist(
         name: String,
         songIds: List<String> = emptyList(),
-        isAiGenerated: Boolean = false,
         isQueueGenerated: Boolean = false,
         coverImageUri: String? = null,
         coverColorArgb: Int? = null,
@@ -73,7 +66,6 @@ class PlaylistPreferencesRepository @Inject constructor(
             songIds = songIds,
             createdAt = now,
             lastModified = now,
-            isAiGenerated = isAiGenerated,
             isQueueGenerated = isQueueGenerated,
             coverImageUri = coverImageUri,
             coverColorArgb = coverColorArgb,
@@ -180,9 +172,6 @@ class PlaylistPreferencesRepository @Inject constructor(
 
     suspend fun setPlaylistsSortOption(optionKey: String) =
         userPreferencesRepository.setPlaylistsSortOption(optionKey)
-
-    suspend fun setShowTelegramCloudPlaylists(show: Boolean) =
-        userPreferencesRepository.setShowTelegramCloudPlaylists(show)
 
     suspend fun getPlaylistsOnce(): List<Playlist> {
         ensureMigratedIfNeeded()

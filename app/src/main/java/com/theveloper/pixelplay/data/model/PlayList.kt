@@ -12,7 +12,6 @@ data class Playlist(
     val songIds: List<String>,
     val createdAt: Long = System.currentTimeMillis(),
     val lastModified: Long = System.currentTimeMillis(),
-    val isAiGenerated: Boolean = false,
     val isQueueGenerated: Boolean = false,
     val coverImageUri: String? = null,
     val coverColorArgb: Int? = null,

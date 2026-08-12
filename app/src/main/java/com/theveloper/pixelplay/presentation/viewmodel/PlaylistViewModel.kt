@@ -32,8 +32,6 @@ import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.os.Build
 import android.provider.MediaStore
-import com.theveloper.pixelplay.data.preferences.TelegramTopicDisplayMode
-import com.theveloper.pixelplay.data.ai.AiPlaylistGenerator
 import com.theveloper.pixelplay.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -45,8 +43,6 @@ import javax.inject.Inject
 
 data class PlaylistUiState(
     val playlists: List<Playlist> = emptyList(),
-    val showTelegramCloudPlaylists: Boolean = true,
-    val telegramTopicDisplayMode: TelegramTopicDisplayMode = TelegramTopicDisplayMode.CHANNELS_AND_TOPICS,
     val currentPlaylistSongs: List<Song> = emptyList(),
     val currentPlaylistDetails: Playlist? = null,
     val isLoading: Boolean = false,
@@ -57,10 +53,6 @@ data class PlaylistUiState(
     val currentPlaylistSongsSortOption: SortOption = SortOption.SongTitleAZ,
     val playlistSongsOrderMode: PlaylistSongsOrderMode = PlaylistSongsOrderMode.Sorted(SortOption.SongTitleAZ),
     val playlistOrderModes: Map<String, PlaylistSongsOrderMode> = emptyMap(),
-
-    // AI Generation State
-    val isAiGenerating: Boolean = false,
-    val aiGenerationError: String? = null
 )
 
 sealed class PlaylistSongsOrderMode {
@@ -73,7 +65,6 @@ class PlaylistViewModel @Inject constructor(
     private val playlistPreferencesRepository: PlaylistPreferencesRepository,
     private val musicRepository: MusicRepository,
     private val dailyMixManager: DailyMixManager,
-    private val aiPlaylistGenerator: AiPlaylistGenerator,
     private val m3uManager: M3uManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
@@ -109,8 +100,6 @@ class PlaylistViewModel @Inject constructor(
 
     init {
         loadPlaylistsAndInitialSortOption()
-        observeTelegramCloudPlaylistVisibility()
-        observeTelegramTopicDisplayMode()
         observePlaylistOrderModes()
     }
 
@@ -149,29 +138,6 @@ class PlaylistViewModel @Inject constructor(
                     sortPlaylists(newSortOption)
                 }
             }
-        }
-    }
-
-    private fun observeTelegramCloudPlaylistVisibility() {
-        viewModelScope.launch {
-            playlistPreferencesRepository.showTelegramCloudPlaylistsFlow.collect { show ->
-                _uiState.update { it.copy(showTelegramCloudPlaylists = show) }
-            }
-        }
-    }
-
-    private fun observeTelegramTopicDisplayMode() {
-        viewModelScope.launch {
-            playlistPreferencesRepository.telegramTopicDisplayModeFlow.collect { mode ->
-                _uiState.update { it.copy(telegramTopicDisplayMode = mode) }
-            }
-        }
-    }
-
-    fun setTelegramTopicDisplayMode(mode: TelegramTopicDisplayMode) { // Simplified
-        _uiState.update { it.copy(telegramTopicDisplayMode = mode) }
-        viewModelScope.launch {
-            playlistPreferencesRepository.setTelegramTopicDisplayMode(mode)
         }
     }
 
@@ -295,7 +261,6 @@ class PlaylistViewModel @Inject constructor(
         cropScale: Float = 1f,
         cropPanX: Float = 0f,
         cropPanY: Float = 0f,
-        isAiGenerated: Boolean = false,
         isQueueGenerated: Boolean = false,
         coverShapeType: String? = null,
         coverShapeDetail1: Float? = null,
@@ -337,7 +302,6 @@ class PlaylistViewModel @Inject constructor(
             playlistPreferencesRepository.createPlaylist(
                 name = name,
                 songIds = resolvedSongIds,
-                isAiGenerated = isAiGenerated,
                 isQueueGenerated = isQueueGenerated,
                 coverImageUri = savedCoverPath,
                 coverColorArgb = coverColor,
@@ -742,15 +706,6 @@ class PlaylistViewModel @Inject constructor(
         }
     }
 
-    fun setShowTelegramCloudPlaylists(show: Boolean) {
-        if (_uiState.value.showTelegramCloudPlaylists == show) return
-
-        _uiState.update { it.copy(showTelegramCloudPlaylists = show) }
-        viewModelScope.launch {
-            playlistPreferencesRepository.setShowTelegramCloudPlaylists(show)
-        }
-    }
-
     fun sortPlaylistSongs(sortOption: SortOption) {
         val playlistId = _uiState.value.currentPlaylistDetails?.id
 
@@ -925,55 +880,6 @@ class PlaylistViewModel @Inject constructor(
             val option = SortOption.fromStorageKey(value, SortOption.SONGS, SortOption.SongTitleAZ)
             PlaylistSongsOrderMode.Sorted(option)
         }
-    }
-
-    fun generateAiPlaylist(prompt: String, minLength: Int = 10, maxLength: Int = 50) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isAiGenerating = true, aiGenerationError = null) }
-
-            try {
-                val allSongs = withContext(Dispatchers.IO) {
-                    musicRepository.getAllSongsOnce()
-                }
-
-                // Call AiPlaylistGenerator
-                val result = aiPlaylistGenerator.generate(
-                    userPrompt = prompt,
-                    allSongs = allSongs,
-                    minLength = minLength,
-                    maxLength = maxLength
-                )
-
-                result.onSuccess { selectedSongs ->
-                    // Create Playlist
-                    val playlistName = "AI: $prompt".take(50)
-
-                    playlistPreferencesRepository.createPlaylist(
-                        name = playlistName,
-                        songIds = selectedSongs.map { it.id },
-                        isAiGenerated = true,
-                        source = "AI" // Mark as AI source
-                    )
-
-                    _uiState.update { it.copy(isAiGenerating = false) }
-                    _playlistCreationEvent.emit(true)
-                }.onFailure { e ->
-                    val errorMessage = if (e.message?.contains("API Key") == true) {
-                        context.getString(R.string.playlist_view_model_ai_gemini_key_required)
-                    } else {
-                        e.message ?: context.getString(R.string.common_error_unknown)
-                    }
-                    _uiState.update { it.copy(isAiGenerating = false, aiGenerationError = errorMessage) }
-                }
-
-            } catch (e: Exception) {
-                _uiState.update { it.copy(isAiGenerating = false, aiGenerationError = e.message) }
-            }
-        }
-    }
-
-    fun clearAiError() {
-        _uiState.update { it.copy(aiGenerationError = null) }
     }
 
     /**
@@ -1154,14 +1060,12 @@ class PlaylistViewModel @Inject constructor(
                     songIds = allSongs.toList(),
                     createdAt = System.currentTimeMillis(),
                     lastModified = System.currentTimeMillis(),
-                    isAiGenerated = false,
                     isQueueGenerated = false
                 )
 
                 playlistPreferencesRepository.createPlaylist(
                     name = newPlaylistName,
                     songIds = allSongs.toList(),
-                    isAiGenerated = false,
                     isQueueGenerated = false
                 )
 

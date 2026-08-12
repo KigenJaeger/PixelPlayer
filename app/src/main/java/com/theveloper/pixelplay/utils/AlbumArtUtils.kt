@@ -8,7 +8,6 @@ import android.net.Uri
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
-import com.theveloper.pixelplay.data.diagnostics.PerformanceMetrics
 import com.theveloper.pixelplay.data.media.AudioMetadataReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -170,14 +169,12 @@ object AlbumArtUtils {
         if (!forceRefresh) {
             if (cachedFile.exists() && cachedFile.length() > 0) {
                 cachedFile.setLastModified(System.currentTimeMillis())
-                PerformanceMetrics.increment(PerformanceMetrics.Counters.ARTWORK_CACHE_HIT)
                 scheduleOversizedArtworkShrink(cachedFile)
                 return cachedFile
             }
             if (noArtFile.exists()) {
                 return null
             }
-            PerformanceMetrics.increment(PerformanceMetrics.Counters.ARTWORK_CACHE_MISS)
         } else {
             cachedFile.delete()
             noArtFile.delete()
@@ -538,21 +535,7 @@ object AlbumArtUtils {
     }
 
     private fun extractEmbeddedAlbumArtBytes(filePath: String): ByteArray? {
-        val startNanos = System.nanoTime()
-        val bytes = extractEmbeddedAlbumArtBytesInternal(filePath)
-        PerformanceMetrics.recordTiming(
-            PerformanceMetrics.Timings.ARTWORK_EXTRACT,
-            (System.nanoTime() - startNanos) / 1_000_000
-        )
-        if (bytes != null) {
-            PerformanceMetrics.increment(PerformanceMetrics.Counters.ARTWORK_EXTRACTED_FRESH)
-            // Only the byte size is recorded — a free field read. Embedded artwork
-            // *dimensions* are intentionally NOT decoded here: a per-file bitmap decode
-            // during scan is exactly the kind of overhead this diagnostic must avoid.
-            // Decoded dimensions come instead from the real decode path (CoilBitmapLoader).
-            PerformanceMetrics.recordEmbeddedArtwork(bytes.size.toLong())
-        }
-        return bytes
+        return extractEmbeddedAlbumArtBytesInternal(filePath)
     }
 
     private fun extractEmbeddedAlbumArtBytesInternal(filePath: String): ByteArray? {

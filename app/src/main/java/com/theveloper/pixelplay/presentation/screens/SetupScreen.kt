@@ -179,8 +179,6 @@ fun SetupScreen(
     val isExplorerReady by setupViewModel.isExplorerReady.collectAsStateWithLifecycle()
     val isCurrentDirectoryResolved by setupViewModel.isCurrentDirectoryResolved.collectAsStateWithLifecycle()
     var selectedBackupUri by remember { mutableStateOf<Uri?>(null) }
-    
-    var showCornerRadiusOverlay by remember { mutableStateOf(false) }
     val backupPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -392,14 +390,6 @@ fun SetupScreen(
                             navigateToPage(pagerState.currentPage + 1)
                         }
                     )
-                    SetupPage.NavBarLayout -> NavBarLayoutPage(
-                        uiState = uiState,
-                        onModeSelected = setupViewModel::setNavBarStyle,
-                        onCustomizeRadius = { showCornerRadiusOverlay = true },
-                        onSkip = {
-                            navigateToPage(pagerState.currentPage + 1)
-                        }
-                    )
                 }
             }
         }
@@ -427,23 +417,6 @@ fun SetupScreen(
         )
     }
 
-    // Overlay for Corner Radius Customization
-    AnimatedVisibility(
-        visible = showCornerRadiusOverlay,
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-    ) {
-        BackHandler {
-            showCornerRadiusOverlay = false
-        }
-        NavBarCornerRadiusContent(
-            initialRadius = uiState.navBarCornerRadius.toFloat(),
-            onRadiusChange = { setupViewModel.setNavBarCornerRadius(it) },
-            onDone = { showCornerRadiusOverlay = false },
-            onBack = { showCornerRadiusOverlay = false },
-            isFullWidth = uiState.navBarStyle == "full_width"
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -545,7 +518,6 @@ sealed class SetupPage {
     object NotificationsPermission : SetupPage()
     object AlarmsPermission : SetupPage()
     object LibraryLayout : SetupPage()
-    object NavBarLayout : SetupPage()
     object BatteryOptimization : SetupPage()
     object Finish : SetupPage()
 }
@@ -564,7 +536,6 @@ private fun buildSetupPages(sdkInt: Int): List<SetupPage> {
     pages += SetupPage.DirectorySelection
     pages += SetupPage.ThemeSelection
     pages += SetupPage.LibraryLayout
-    pages += SetupPage.NavBarLayout
 
     if (sdkInt >= Build.VERSION_CODES.S) {
         pages += SetupPage.AlarmsPermission
@@ -672,32 +643,7 @@ fun WelcomePage() {
                 ),
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = 2.dp,
-            shadowElevation = 0.dp
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.setup_beta_symbol),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Black
-                )
-                Text(
-                    text = stringResource(R.string.setup_beta_label),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         // Placeholder for vector art
         Box(
             modifier = Modifier

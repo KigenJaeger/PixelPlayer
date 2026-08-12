@@ -4,10 +4,10 @@
     android:viewportWidth="200"
     android:viewportHeight="100">
 
-  <!-- Base background -->
+  <!-- Transparent base background -->
   <path
       android:pathData="M13.42,0L186.58,0A13.42,13.42 0,0 1,200 13.42L200,86.58A13.42,13.42 0,0 1,186.58 100L13.42,100A13.42,13.42 0,0 1,0 86.58L0,13.42A13.42,13.42 0,0 1,13.42 0z"
-      android:fillColor="#181C1F"/>
+      android:fillColor="#00000000"/>
 
   <!-- Image Icon -->
   <group>

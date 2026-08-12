@@ -68,7 +68,6 @@ class ControllerSyncCallbacks(
     val setTrackVolume: (Float) -> Unit,
     val emitToast: suspend (String) -> Unit,
     val showNoInternetDialog: suspend () -> Unit,
-    val ensureTelegramObservers: () -> Unit,
     val cancelSleepTimerForEot: () -> Unit,
     val resetLyricsSearchState: () -> Unit,
     val loadLyricsForCurrentSong: () -> Unit,
@@ -91,7 +90,6 @@ class MediaControllerSyncStateHolder @Inject constructor(
     private val mediaMapper: MediaMapper,
     private val playbackStateHolder: PlaybackStateHolder,
     private val libraryStateHolder: LibraryStateHolder,
-    private val castStateHolder: CastStateHolder,
     private val connectivityStateHolder: ConnectivityStateHolder,
     private val themeStateHolder: ThemeStateHolder,
     private val lyricsStateHolder: LyricsStateHolder,
@@ -239,12 +237,6 @@ class MediaControllerSyncStateHolder @Inject constructor(
     fun applyPreferredRepeatMode(@Player.RepeatMode mode: Int) {
         playbackStateHolder.updateStablePlayerState { it.copy(repeatMode = mode) }
 
-        val castSession = castStateHolder.castSession.value
-        if (castSession != null && castSession.remoteMediaClient != null) {
-            pendingRepeatMode = mode
-            return
-        }
-
         val controller = cb.getController()
         if (controller == null) {
             pendingRepeatMode = mode
@@ -383,9 +375,7 @@ class MediaControllerSyncStateHolder @Inject constructor(
     }
 
     private fun isRemoteSessionControllingPlayback(): Boolean {
-        val remoteClient = castStateHolder.castSession.value?.remoteMediaClient
-        return remoteClient != null &&
-                (castStateHolder.isRemotePlaybackActive.value || castStateHolder.isCastConnecting.value)
+        return false
     }
 
     private fun syncPlaybackPositionFromPlayer(
@@ -629,22 +619,20 @@ class MediaControllerSyncStateHolder @Inject constructor(
                 }
                 if (playbackState == Player.STATE_IDLE && playerCtrl.mediaItemCount == 0) {
                     playbackDispatchStateHolder.clearPreparingSongIfMatching()
-                    if (!castStateHolder.isCastConnecting.value && !castStateHolder.isRemotePlaybackActive.value) {
-                        lyricsStateHolder.cancelLoading()
-                        playbackStateHolder.updateStablePlayerState {
-                            it.copy(
-                                currentSong = null,
-                                isPlaying = false,
-                                playWhenReady = false,
-                                lyrics = null,
-                                isLoadingLyrics = false,
-                                totalDuration = 0L
-                            )
-                        }
-                        playbackStateHolder.clearCurrentPositionHints()
-                        playbackStateHolder.setCurrentPosition(0L)
-                        resetPlaybackAudioMetadata()
+                    lyricsStateHolder.cancelLoading()
+                    playbackStateHolder.updateStablePlayerState {
+                        it.copy(
+                            currentSong = null,
+                            isPlaying = false,
+                            playWhenReady = false,
+                            lyrics = null,
+                            isLoadingLyrics = false,
+                            totalDuration = 0L
+                        )
                     }
+                    playbackStateHolder.clearCurrentPositionHints()
+                    playbackStateHolder.setCurrentPosition(0L)
+                    resetPlaybackAudioMetadata()
                 }
             }
         })
@@ -682,22 +670,6 @@ class MediaControllerSyncStateHolder @Inject constructor(
 
                     mediaItem?.let { transitionedItem ->
                         val song = resolveSongFromMediaItem(transitionedItem)
-
-                        // Offline check for Telegram songs
-                        if (song?.contentUriString?.startsWith("telegram:") == true) {
-                            cb.ensureTelegramObservers()
-                            val isOnline = connectivityStateHolder.isOnline.value
-                            if (!isOnline) {
-                                val fileId = song.telegramFileId
-                                if (fileId != null) {
-                                    val isCached = musicRepository.telegramRepository.isFileCached(fileId)
-                                    if (!isCached) {
-                                        playerCtrl.pause()
-                                        cb.showNoInternetDialog()
-                                    }
-                                }
-                            }
-                        }
 
                         val resolvedDuration = if (song != null) {
                             playbackStateHolder.resolveDurationForPlaybackState(
@@ -737,21 +709,19 @@ class MediaControllerSyncStateHolder @Inject constructor(
                             cb.loadLyricsForCurrentSong()
                         }
                     } ?: run {
-                        if (!castStateHolder.isCastConnecting.value && !castStateHolder.isRemotePlaybackActive.value) {
-                            lyricsStateHolder.cancelLoading()
-                            playbackStateHolder.updateStablePlayerState {
-                                it.copy(
-                                    currentSong = null,
-                                    isPlaying = false,
-                                    playWhenReady = false,
-                                    lyrics = null,
-                                    isLoadingLyrics = false,
-                                    totalDuration = 0L
-                                )
-                            }
-                            playbackStateHolder.clearCurrentPositionHints()
-                            resetPlaybackAudioMetadata()
+                        lyricsStateHolder.cancelLoading()
+                        playbackStateHolder.updateStablePlayerState {
+                            it.copy(
+                                currentSong = null,
+                                isPlaying = false,
+                                playWhenReady = false,
+                                lyrics = null,
+                                isLoadingLyrics = false,
+                                totalDuration = 0L
+                            )
                         }
+                        playbackStateHolder.clearCurrentPositionHints()
+                        resetPlaybackAudioMetadata()
                     }
                 }
             }

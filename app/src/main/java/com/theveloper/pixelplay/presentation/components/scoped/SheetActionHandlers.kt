@@ -114,13 +114,6 @@ internal fun rememberSheetActionHandlers(
             playerViewModelState.value.collapsePlayerSheet()
             queueSheetControllerState.value.animate(false)
             sheetModalOverlayControllerState.value.updateSelectedSongForInfo(null)
-            if (!song.genre.isNullOrEmpty()) {
-                val encodedGenre = java.net.URLEncoder.encode(song.genre, "UTF-8")
-                navController.navigateSafelyReplacing(
-                    route = Screen.GenreDetail.createRoute(encodedGenre),
-                    patternToPop = Screen.GenreDetail.route
-                )
-            }
         }
     }
 

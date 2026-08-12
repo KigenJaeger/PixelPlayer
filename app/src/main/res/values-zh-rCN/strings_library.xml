@@ -89,7 +89,6 @@
     <string name="library_sync_pending">等待中…</string>
     <string name="library_syncing">正在同步媒体库…</string>
     <string name="library_sync_cache">正在清理专辑封面缓存…</string>
-    <string name="library_sync_cloud">正在同步云端数据源…</string>
     <string name="library_sync_lyrics">正在扫描歌词…</string>
 
     <!-- Library Empty State -->

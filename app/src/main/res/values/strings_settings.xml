@@ -22,7 +22,7 @@
     <string name="settings_category_accounts_title">Accounts</string>
     <string name="settings_category_accounts_subtitle">Manage Telegram, Google Drive, NetEase, and more services</string>
     <string name="settings_category_about_title">About</string>
-    <string name="settings_category_about_subtitle">App info, version, and credits</string>
+    <string name="settings_category_about_subtitle">App info, version, and details</string>
 
     <!-- Common toggles / labels used in ThemeSelectorItem maps -->
     <string name="settings_label_on">On</string>
@@ -153,13 +153,19 @@
     <string name="settings_sync_phase_saving_db">Saving to database</string>
     <string name="settings_sync_phase_scanning_lrc">Scanning lyrics files</string>
     <string name="settings_sync_phase_cleaning_cache">Cleaning album art cache</string>
-    <string name="settings_sync_phase_syncing_cloud">Syncing cloud sources</string>
     <string name="settings_sync_phase_completing">Completing sync</string>
     <string name="settings_sync_progress_detailed">%1$s • %2$d%% (%3$d/%4$d)</string>
     <string name="settings_sync_progres_indeterminate">%1$s…</string>
 
     <!-- Appearance category -->
     <string name="settings_global_theme_section">Global Theme</string>
+    <string name="settings_background_image_title">Custom Background</string>
+    <string name="settings_background_image_subtitle">Pick an image from your gallery to use as the app background.</string>
+    <string name="settings_background_image_set">Custom image set</string>
+    <string name="settings_background_image_none">Default color background</string>
+    <string name="settings_background_image_remove">Remove custom background</string>
+    <string name="settings_background_image_change">Change background image</string>
+    <string name="settings_background_enabled_subtitle">Enable a translucent background with a custom image. Disable to keep the default look.</string>
     <string name="settings_app_language_title">App Language</string>
     <string name="settings_app_language_subtitle">Choose the language used across the app interface.</string>
     <string name="settings_language_system">System default</string>
@@ -213,8 +219,34 @@
     <string name="settings_navbar_corner_title">NavBar Corner Radius</string>
     <string name="settings_navbar_corner_subtitle">Adjust the corner radius of the navigation bar.</string>
     <string name="settings_lyrics_screen_section">Lyrics Screen</string>
+    <string name="settings_lyrics_display_section">Lyrics display</string>
+    <string name="settings_desktop_lyrics_section">Desktop floating lyrics</string>
     <string name="settings_immersive_lyrics_title">Immersive Lyrics</string>
     <string name="settings_immersive_lyrics_subtitle">Auto-hide controls and enlarge text.</string>
+    <string name="settings_desktop_lyrics_title">Desktop floating lyrics</string>
+    <string name="settings_desktop_lyrics_subtitle">Show a horizontal lyric bar over other apps. Requires display over other apps permission.</string>
+    <string name="settings_desktop_lyrics_permission_required">Grant display over other apps permission to use desktop floating lyrics.</string>
+    <string name="settings_desktop_lyrics_lock_title">Lock floating lyrics</string>
+    <string name="settings_desktop_lyrics_lock_subtitle">Freeze the current position and let touches pass through the lyric bar.</string>
+    <string name="settings_desktop_lyrics_background_title">Background panel</string>
+    <string name="settings_desktop_lyrics_background_subtitle">Show the rounded rectangle behind the lyric bar.</string>
+    <string name="settings_desktop_lyrics_size_title">Floating lyrics size</string>
+    <string name="settings_desktop_lyrics_alignment_title">Alignment and edge</string>
+    <string name="settings_desktop_lyrics_alignment_subtitle">Align lyrics left, center, or right. Left and right modes use a flat edge for screen-edge placement.</string>
+    <string name="settings_desktop_lyrics_alignment_left">Left edge</string>
+    <string name="settings_desktop_lyrics_alignment_center">Center</string>
+    <string name="settings_desktop_lyrics_alignment_right">Right edge</string>
+    <string name="settings_desktop_lyrics_color_source_title">Color source</string>
+    <string name="settings_desktop_lyrics_color_source_subtitle">Choose between app theme Monet colors and current song artwork colors.</string>
+    <string name="settings_desktop_lyrics_color_source_theme">Theme Monet</string>
+    <string name="settings_desktop_lyrics_color_source_album_art">Album art Monet</string>
+    <string name="settings_desktop_lyrics_color_title">Floating lyrics color role</string>
+    <string name="settings_desktop_lyrics_color_subtitle">Choose the Monet role used for the lyric text.</string>
+    <string name="settings_desktop_lyrics_color_primary">Monet primary</string>
+    <string name="settings_desktop_lyrics_color_secondary">Monet secondary</string>
+    <string name="settings_desktop_lyrics_color_tertiary">Monet tertiary</string>
+    <string name="settings_desktop_lyrics_color_inverse_primary">Monet inverse primary</string>
+    <string name="settings_desktop_lyrics_color_neutral">Monet neutral</string>
     <string name="settings_auto_hide_delay_title">Auto-hide Delay</string>
     <string name="settings_auto_hide_delay_subtitle">Time before controls hide.</string>
     <string name="settings_auto_hide_delay_3s">3s</string>
@@ -263,6 +295,8 @@
     <string name="settings_background_playback_section">Background Playback</string>
     <string name="settings_keep_playing_title">Keep playing after closing</string>
     <string name="settings_keep_playing_subtitle">If off, removing the app from recents will stop playback.</string>
+    <string name="settings_parallel_play_title">Parallel Play</string>
+    <string name="settings_parallel_play_subtitle">Allow other apps to keep playing audio at the same time.</string>
     <string name="settings_battery_optimization_title">Battery Optimization</string>
     <string name="settings_battery_optimization_subtitle">Disable battery optimization to prevent playback interruptions.</string>
     <string name="settings_toast_battery_already_disabled">Battery optimization is already disabled</string>
@@ -622,6 +656,11 @@
     <string name="about_app_name">PixelPlayer</string>
     <string name="about_tagline">Open source music player built with its community.</string>
     <string name="about_version_format">Version v%1$s</string>
+    <string name="about_app_info_body">A local-first music player for library playback, playlists, widgets, and device transfer.</string>
+    <string name="about_version_label">Version</string>
+    <string name="about_version_code_label">Build</string>
+    <string name="about_updated_label">Updated</string>
+    <string name="about_package_label">Package</string>
     <string name="about_signal_open_source">Open source</string>
     <string name="about_signal_community_first">Community-first</string>
     <string name="about_signal_material3">Material 3 expressive</string>
@@ -630,15 +669,6 @@
     <string name="about_maintainer_subtitle">The person behind PixelPlayer.</string>
     <string name="about_spotlight_title">Community spotlight</string>
     <string name="about_spotlight_subtitle">Recognition for collaborators with major impact.</string>
-    <string name="about_licenses_title">Licenses and notices</string>
-    <string name="about_licenses_subtitle">Attribution for dependencies and earlier contributions.</string>
-    <string name="about_open_source_licenses">Open source licenses</string>
-    <string name="about_open_source_licenses_subtitle">Dependency licenses and third-party notices</string>
-    <string name="open_source_licenses_screen_title">Open source licenses</string>
-    <string name="third_party_notices_action">MIT-era notice</string>
-    <string name="third_party_notices_title">Third-party notices</string>
-    <string name="third_party_notices_close">Close</string>
-    <string name="third_party_notices_load_error">The bundled third-party notice could not be loaded.</string>
     <string name="about_contributors_section_title">Open source contributors</string>
     <string name="about_contributors_section_subtitle">Live contributor list from GitHub.</string>
     <string name="about_contributions_format">%1$d contrib.</string>

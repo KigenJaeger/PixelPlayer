@@ -162,26 +162,6 @@ object GenreThemeUtils {
         )
     }
 
-    fun getGenreDetailColorScheme(
-        genre: Genre?,
-        isDark: Boolean,
-        fallbackGenreId: String = "unknown",
-        paletteStyle: AlbumArtPaletteStyle = AlbumArtPaletteStyle.default
-    ): ColorScheme {
-        val effectiveGenreId = genre?.id?.takeIf { it.isNotBlank() } ?: fallbackGenreId
-        val referenceColor = getGenreThemeColor(
-            genre = genre,
-            isDark = isDark,
-            fallbackGenreId = fallbackGenreId
-        )
-        return getColorSchemeFromSeed(
-            seedColor = referenceColor.container,
-            isDark = isDark,
-            paletteStyle = paletteStyle,
-            forceMonochrome = isUnknownGenreId(effectiveGenreId)
-        )
-    }
-
     fun getColorSchemeFromSeed(
         seedColor: Color,
         isDark: Boolean,

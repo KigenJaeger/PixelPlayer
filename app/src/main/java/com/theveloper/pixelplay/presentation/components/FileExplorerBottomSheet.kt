@@ -89,6 +89,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.theveloper.pixelplay.presentation.screens.TabAnimation
 import com.theveloper.pixelplay.presentation.viewmodel.DirectoryEntry
+import com.theveloper.pixelplay.ui.theme.ReadableOverlayTheme
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import com.theveloper.pixelplay.ui.theme.LocalShowScrollbar
 import com.theveloper.pixelplay.utils.StorageInfo
@@ -134,37 +135,39 @@ fun FileExplorerDialog(
                 decorFitsSystemWindows = false
             )
         ) {
-            AnimatedVisibility(
-                visibleState = transitionState,
-                enter = slideInVertically(initialOffsetY = { it / 6 }) + fadeIn(animationSpec = tween(220)),
-                exit = slideOutVertically(targetOffsetY = { it / 6 }) + fadeOut(animationSpec = tween(200)),
-                label = "file_explorer_dialog"
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow
+            ReadableOverlayTheme {
+                AnimatedVisibility(
+                    visibleState = transitionState,
+                    enter = slideInVertically(initialOffsetY = { it / 6 }) + fadeIn(animationSpec = tween(220)),
+                    exit = slideOutVertically(targetOffsetY = { it / 6 }) + fadeOut(animationSpec = tween(200)),
+                    label = "file_explorer_dialog"
                 ) {
-                    FileExplorerContent(
-                        currentPath = currentPath,
-                        directoryChildren = directoryChildren,
-                        availableStorages = availableStorages,
-                        selectedStorageIndex = selectedStorageIndex,
-                        isLoading = isLoading,
-                        isPriming = isPriming,
-                        isReady = isReady,
-                        isCurrentDirectoryResolved = isCurrentDirectoryResolved,
-                        isAtRoot = isAtRoot,
-                        rootDirectory = rootDirectory,
-                        onNavigateTo = onNavigateTo,
-                        onNavigateUp = onNavigateUp,
-                        onNavigateHome = onNavigateHome,
-                        onToggleAllowed = onToggleAllowed,
-                        onRefresh = onRefresh,
-                        onStorageSelected = onStorageSelected,
-                        onDone = onDone,
-                        onDismiss = onDismiss,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        FileExplorerContent(
+                            currentPath = currentPath,
+                            directoryChildren = directoryChildren,
+                            availableStorages = availableStorages,
+                            selectedStorageIndex = selectedStorageIndex,
+                            isLoading = isLoading,
+                            isPriming = isPriming,
+                            isReady = isReady,
+                            isCurrentDirectoryResolved = isCurrentDirectoryResolved,
+                            isAtRoot = isAtRoot,
+                            rootDirectory = rootDirectory,
+                            onNavigateTo = onNavigateTo,
+                            onNavigateUp = onNavigateUp,
+                            onNavigateHome = onNavigateHome,
+                            onToggleAllowed = onToggleAllowed,
+                            onRefresh = onRefresh,
+                            onStorageSelected = onStorageSelected,
+                            onDone = onDone,
+                            onDismiss = onDismiss,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }

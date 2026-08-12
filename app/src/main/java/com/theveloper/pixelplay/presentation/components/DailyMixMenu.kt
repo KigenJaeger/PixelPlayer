@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.ui.theme.ReadableOverlayTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,15 +35,17 @@ fun DailyMixMenu(
     )
     var prompt by remember { mutableStateOf("") }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+    ReadableOverlayTheme {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
             Text(
                 text = stringResource(R.string.daily_mix_how_title),
             )
@@ -73,6 +76,7 @@ fun DailyMixMenu(
                         stringResource(R.string.daily_mix_update)
                     }
                 )
+            }
             }
         }
     }

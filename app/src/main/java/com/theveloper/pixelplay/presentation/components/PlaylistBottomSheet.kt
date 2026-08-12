@@ -48,6 +48,7 @@ import com.theveloper.pixelplay.presentation.components.subcomps.LibraryActionRo
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistUiState
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
+import com.theveloper.pixelplay.ui.theme.ReadableOverlayTheme
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -63,7 +64,6 @@ fun PlaylistBottomSheet(
     currentPlaylistId: String? = null
 ) {
     val playlistCreatedAndSongsAddedMessage = stringResource(R.string.playlist_sheet_created_and_songs_added)
-    val setAiProviderApiKeyFirstMessage = stringResource(R.string.library_toast_set_ai_provider_api_key_first)
     val songAddedToPlaylistsMessage = stringResource(R.string.playlist_sheet_song_added_to_playlists)
     val commonSavedMessage = stringResource(R.string.common_saved)
     val saveActionText = stringResource(R.string.common_save)
@@ -81,8 +81,6 @@ fun PlaylistBottomSheet(
         if (searchQuery.isBlank()) playlistUiState.playlists
         else playlistUiState.playlists.filter { it.name.contains(searchQuery, true) }
     }
-    val hasActiveAiProviderApiKey by playerViewModel.hasActiveAiProviderApiKey.collectAsStateWithLifecycle()
-
     val selectedPlaylists = remember {
         mutableStateMapOf<String, Boolean>().apply {
             if (songs.size == 1) {
@@ -107,12 +105,14 @@ fun PlaylistBottomSheet(
         label = "fab_alpha"
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        contentWindowInsets = { BottomSheetDefaults.modalWindowInsets } // Manejo de insets como el teclado
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+    ReadableOverlayTheme {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentWindowInsets = { BottomSheetDefaults.modalWindowInsets } // Manejo de insets como el teclado
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
 
             Column {
                 Row(
@@ -208,14 +208,6 @@ fun PlaylistBottomSheet(
                             showCreatePlaylistDialog = false
                             onDismiss() // Close sheet after creation + add
                             playerViewModel.sendToast(playlistCreatedAndSongsAddedMessage)
-                        },
-                        onGenerateClick = {
-                            showCreatePlaylistDialog = false
-                            if (hasActiveAiProviderApiKey) {
-                                playerViewModel.showAiPlaylistSheet()
-                            } else {
-                                playerViewModel.sendToast(setAiProviderApiKeyFirstMessage)
-                            }
                         }
                     )
                 }
@@ -255,6 +247,7 @@ fun PlaylistBottomSheet(
                 icon = { Icon(Icons.Rounded.Save, saveActionText) },
                 text = { Text(if (songs.size > 1) stringResource(R.string.common_add) else saveActionText) },
             )
+            }
         }
     }
 }

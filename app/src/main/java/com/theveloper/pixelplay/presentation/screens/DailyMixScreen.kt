@@ -34,7 +34,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.LargeExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,7 +50,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import android.os.Trace // Import Trace
 import androidx.compose.foundation.layout.WindowInsets
@@ -73,8 +71,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.presentation.components.AiPlaylistSheet
-import com.theveloper.pixelplay.presentation.components.DailyMixMenu
 import com.theveloper.pixelplay.presentation.components.MiniPlayerHeight
 import com.theveloper.pixelplay.presentation.components.PlaylistBottomSheet
 import com.theveloper.pixelplay.presentation.components.SmartImage
@@ -86,7 +82,6 @@ import com.theveloper.pixelplay.presentation.viewmodel.MainViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
 import com.theveloper.pixelplay.presentation.viewmodel.PlaylistViewModel
 import com.theveloper.pixelplay.utils.formatDuration
-import com.theveloper.pixelplay.utils.shapes.RoundedStarShape
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -120,42 +115,9 @@ fun DailyMixScreen(
     val favoriteSongIds by playerViewModel.favoriteSongIds.collectAsStateWithLifecycle()
     val selectedSongForInfo by playerViewModel.selectedSongForInfo.collectAsStateWithLifecycle()
 
-    val showAiSheet by playerViewModel.showAiPlaylistSheet.collectAsStateWithLifecycle()
-    val isGeneratingAiPlaylist by playerViewModel.isGeneratingAiPlaylist.collectAsStateWithLifecycle()
-    val aiStatus by playerViewModel.aiStatus.collectAsStateWithLifecycle()
-    val aiError by playerViewModel.aiError.collectAsStateWithLifecycle()
-    val aiSuccess by playerViewModel.aiSuccess.collectAsStateWithLifecycle()
     val lazyListState = rememberLazyListState()
 
     var showSongInfoSheet by remember { mutableStateOf(false) }
-    var showDailyMixMenu by remember { mutableStateOf(false) }
-
-    if (showDailyMixMenu) {
-        DailyMixMenu(
-            onDismiss = { showDailyMixMenu = false },
-            onApplyPrompt = { prompt ->
-                playerViewModel.regenerateDailyMixWithPrompt(prompt)
-                showDailyMixMenu = false
-            },
-            isLoading = isGeneratingAiPlaylist
-        )
-    }
-
-    if (showAiSheet) {
-        // AI Integration: Premium Material 3 Expressive sheet for interactive playlist curation
-        AiPlaylistSheet(
-            onDismiss = { playerViewModel.dismissAiPlaylistSheet() },
-            onGenerateClick = { prompt, minLength, maxLength ->
-                // Optimize: Trigger background AI generation and track real-time status
-                playerViewModel.generateAiPlaylist(prompt, minLength, maxLength, saveAsPlaylist = false)
-            },
-            isGenerating = isGeneratingAiPlaylist,
-            isSuccess = aiSuccess,
-            status = aiStatus,
-            error = aiError,
-            onRetry = { playerViewModel.retryLastPlaylistGeneration() }
-        )
-    }
 
     val surfaceContainer = MaterialTheme.colorScheme.surface
     val headerColor = MaterialTheme.colorScheme.primary
@@ -209,9 +171,6 @@ fun DailyMixScreen(
                 showSongInfoSheet = false
             },
             onNavigateToGenre = {
-                song.genre?.let {
-                    navController.navigateSafely(Screen.GenreDetail.createRoute(java.net.URLEncoder.encode(it, "UTF-8")))
-                }
                 showSongInfoSheet = false
             },
             onEditSong = { newTitle, newArtist, newAlbum, newAlbumArtist, newComposer, newGenre, newLyrics, newTrackNumber, newDiscNumber, replayGainTrackGainDb, replayGainAlbumGainDb, coverArtUpdate ->
@@ -270,8 +229,7 @@ fun DailyMixScreen(
                 item(key = "daily_mix_header") {
                     ExpressiveDailyMixHeader(
                         songs = dailyMixSongs,
-                        scrollState = lazyListState,
-                        onShowMenu = { playerViewModel.showAiPlaylistSheet() }
+                        scrollState = lazyListState
                     )
                 }
 
@@ -428,8 +386,7 @@ fun DailyMixScreen(
 @Composable
 private fun ExpressiveDailyMixHeader(
     songs: List<Song>,
-    scrollState: LazyListState,
-    onShowMenu: () -> Unit
+    scrollState: LazyListState
 ) {
     val dailyMixHeaderTitle = stringResource(R.string.daily_mix_title)
     Trace.beginSection("ExpressiveDailyMixHeader.Composition")
@@ -568,21 +525,6 @@ private fun ExpressiveDailyMixHeader(
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                )
-            }
-            LargeExtendedFloatingActionButton(
-                modifier = Modifier,
-                onClick = onShowMenu,
-                shape = RoundedStarShape(
-                    sides = 8,
-                    curve = 0.05,
-                    rotation = 0f
-                )
-            ) {
-                Icon(
-                    modifier = Modifier.size(20.dp),
-                    painter = painterResource(R.drawable.gemini_ai),
-                    contentDescription = stringResource(R.string.daily_mix_cd_ai_playlist_generator)
                 )
             }
         }

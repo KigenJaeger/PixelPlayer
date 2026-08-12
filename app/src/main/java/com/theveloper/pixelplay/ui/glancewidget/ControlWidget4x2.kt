@@ -11,9 +11,7 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
-import androidx.glance.background
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -64,15 +62,12 @@ class ControlWidget4x2 : GlanceAppWidget() {
 
         val colors = playerInfo.getWidgetColors()
 
-        val widgetCornerRadius = 28.dp
         val albumArtCornerRadius = 16.dp
         val playButtonCornerRadius = if (isPlaying) 16.dp else 20.dp
         val controlButtonCornerRadius = 16.dp
 
         Box(
             modifier = GlanceModifier
-                .background(colors.surface)
-                .cornerRadius(widgetCornerRadius)
                 .padding(16.dp)
                 .clickable(actionStartActivity<MainActivity>())
         ) {

@@ -29,10 +29,6 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
-import androidx.mediarouter.media.MediaControlIntent
-import androidx.mediarouter.media.MediaRouter
-import com.google.android.gms.cast.framework.SessionManager
-import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -44,16 +40,13 @@ import com.theveloper.pixelplay.data.model.FolderSource
 import com.theveloper.pixelplay.data.model.Genre
 import com.theveloper.pixelplay.data.model.Lyrics
 import com.theveloper.pixelplay.data.model.LyricsSourcePreference
-import com.theveloper.pixelplay.data.model.SearchFilterType
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.model.SortOption
 import com.theveloper.pixelplay.data.model.toLibraryTabIdOrNull
-import com.theveloper.pixelplay.data.provider.SharedArtworkContentProvider
 import com.theveloper.pixelplay.data.preferences.CarouselStyle
 import com.theveloper.pixelplay.data.preferences.LibraryNavigationMode
 import com.theveloper.pixelplay.data.preferences.NavBarStyle
 import com.theveloper.pixelplay.data.preferences.FullPlayerLoadingTweaks
-import com.theveloper.pixelplay.data.preferences.AiPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.AlbumArtPaletteStyle
 import com.theveloper.pixelplay.data.preferences.ThemePreferencesRepository
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
@@ -63,23 +56,16 @@ import com.theveloper.pixelplay.data.repository.LyricsSearchResult
 import com.theveloper.pixelplay.data.repository.MusicRepository
 import com.theveloper.pixelplay.data.service.MusicNotificationProvider
 import com.theveloper.pixelplay.data.service.MusicService
-import com.theveloper.pixelplay.data.service.cast.CastRemotePlaybackState
-import com.theveloper.pixelplay.data.service.player.CastPlayer
-import com.theveloper.pixelplay.data.service.http.MediaFileHttpServerService
 import com.theveloper.pixelplay.data.service.player.DualPlayerEngine
 import com.theveloper.pixelplay.data.worker.SyncManager
 import com.theveloper.pixelplay.utils.ValidatedLyricsImport
-import com.theveloper.pixelplay.utils.LocalArtworkUri
-import com.theveloper.pixelplay.utils.LyricsUtils
 import com.theveloper.pixelplay.utils.StorageType
 import com.theveloper.pixelplay.utils.StorageUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -116,58 +102,10 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import coil.imageLoader
 import coil.memory.MemoryCache
-import dagger.Lazy
 
-private const val CAST_LOG_TAG = "PlayerCastTransfer"
 private const val ENABLE_FOLDERS_SOURCE_SWITCHING = true
 private const val HOME_MIX_PREVIEW_LIMIT = 48
 private const val EXTERNAL_SONG_ID_PREFIX = "external:"
-
-internal fun List<Song>.toPlaybackQueue(): ImmutableList<Song> = when (this) {
-    is PersistentList<Song> -> this
-    is ImmutableList<Song> -> this
-    else -> this.toPersistentList()
-}
-
-internal fun ImmutableList<Song>.asPersistentPlaybackQueue(): PersistentList<Song> =
-    this as? PersistentList<Song> ?: this.toPersistentList()
-
-internal fun ImmutableList<Song>.replaceSong(updatedSong: Song): ImmutableList<Song> {
-    val index = indexOfFirst { it.id == updatedSong.id }
-    if (index == -1) return this
-    return asPersistentPlaybackQueue().set(index, updatedSong)
-}
-
-private fun ImmutableList<Song>.removeSongById(songId: String): ImmutableList<Song> {
-    val index = indexOfFirst { it.id == songId }
-    if (index == -1) return this
-    return asPersistentPlaybackQueue().removeAt(index)
-}
-
-private fun ImmutableList<Song>.moveSong(fromIndex: Int, toIndex: Int): ImmutableList<Song> {
-    if (fromIndex == toIndex || fromIndex !in indices || toIndex !in indices) return this
-    val movedSong = this[fromIndex]
-    return asPersistentPlaybackQueue()
-        .removeAt(fromIndex)
-        .add(toIndex, movedSong)
-}
-
-private fun moveQueueIndex(index: Int, fromIndex: Int, toIndex: Int): Int {
-    if (index == C.INDEX_UNSET || fromIndex == toIndex) return index
-    return when {
-        index == fromIndex -> toIndex
-        fromIndex < toIndex && index in (fromIndex + 1)..toIndex -> index - 1
-        toIndex < fromIndex && index in toIndex until fromIndex -> index + 1
-        else -> index
-    }
-}
-
-private data class AiUiSnapshot(
-    val showAiPlaylistSheet: Boolean,
-    val isGeneratingAiPlaylist: Boolean,
-    val aiStatus: String?,
-    val aiError: String?,
-)
 
 private data class SortOptionsSnapshot(
     val songSort: SortOption,
@@ -185,29 +123,22 @@ class PlayerViewModel @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val musicRepository: MusicRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val aiPreferencesRepository: AiPreferencesRepository,
     private val themePreferencesRepository: ThemePreferencesRepository,
     val syncManager: SyncManager, // Inyectar SyncManager
 
     private val dualPlayerEngine: DualPlayerEngine,
-    private val telegramCacheManagerProvider: Lazy<com.theveloper.pixelplay.data.telegram.TelegramCacheManager>,
     private val listeningStatsTracker: ListeningStatsTracker,
     private val dailyMixStateHolder: DailyMixStateHolder,
     private val lyricsStateHolder: LyricsStateHolder,
-    private val castStateHolder: CastStateHolder,
-    private val castRouteStateHolder: CastRouteStateHolder,
     private val queueStateHolder: QueueStateHolder,
     private val queueUndoStateHolder: QueueUndoStateHolder,
     private val playlistDismissUndoStateHolder: PlaylistDismissUndoStateHolder,
     private val playbackStateHolder: PlaybackStateHolder,
     private val connectivityStateHolder: ConnectivityStateHolder,
     private val sleepTimerStateHolder: SleepTimerStateHolder,
-    private val searchStateHolder: SearchStateHolder,
-    private val aiStateHolder: AiStateHolder,
     private val libraryStateHolder: LibraryStateHolder,
     private val folderNavigationStateHolder: FolderNavigationStateHolder,
     private val libraryTabsStateHolder: LibraryTabsStateHolder,
-    private val castTransferStateHolder: CastTransferStateHolder,
     private val metadataEditStateHolder: MetadataEditStateHolder,
     private val songRemovalStateHolder: SongRemovalStateHolder,
     val themeStateHolder: ThemeStateHolder,
@@ -326,39 +257,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    private var telegramPlaybackObserversStarted = false
-
-    private fun ensureTelegramPlaybackObserversStarted() {
-        if (telegramPlaybackObserversStarted) return
-        telegramPlaybackObserversStarted = true
-
-        val telegramCacheManager = telegramCacheManagerProvider.get()
-        val telegramRepository = musicRepository.telegramRepository
-
-        viewModelScope.launch {
-            launch {
-                telegramCacheManager.embeddedArtUpdated.collect { updatedArtUri ->
-                    refreshArtwork(updatedArtUri)
-                }
-            }
-
-            launch {
-                telegramRepository.downloadCompleted.collect {
-                    val currentSong = playbackStateHolder.stablePlayerState.value.currentSong
-                    if (currentSong != null && currentSong.contentUriString.startsWith("telegram:")) {
-                        val uri = Uri.parse(currentSong.contentUriString)
-                        val chatId = uri.host?.toLongOrNull()
-                        val messageId = uri.pathSegments.firstOrNull()?.toLongOrNull()
-
-                        if (chatId != null && messageId != null) {
-                            refreshArtwork("telegram_art://$chatId/$messageId")
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private suspend fun refreshArtwork(updatedArtUri: String) {
         val currentState = playbackStateHolder.stablePlayerState.value
         val currentSong = currentState.currentSong
@@ -425,9 +323,6 @@ class PlayerViewModel @Inject constructor(
     val predictiveBackSwipeEdge: StateFlow<Int?> = _predictiveBackSwipeEdge.asStateFlow()
     private val _isQueueSheetVisible = MutableStateFlow(false)
     val isQueueSheetVisible: StateFlow<Boolean> = _isQueueSheetVisible.asStateFlow()
-    private val _isCastSheetVisible = MutableStateFlow(false)
-    val isCastSheetVisible: StateFlow<Boolean> = _isCastSheetVisible.asStateFlow()
-
     val playerContentExpansionFraction = Animatable(0f)
 
     private val _isMiniPlayerDismissing = MutableStateFlow(false)
@@ -436,13 +331,6 @@ class PlayerViewModel @Inject constructor(
     fun setMiniPlayerDismissing(dismissing: Boolean) {
         _isMiniPlayerDismissing.value = dismissing
     }
-
-    // AI Ecosystem: States delegated to AiStateHolder for centralized management
-    val showAiPlaylistSheet: StateFlow<Boolean> = aiStateHolder.showAiPlaylistSheet
-    val isGeneratingAiPlaylist: StateFlow<Boolean> = aiStateHolder.isGeneratingAiPlaylist
-    val aiSuccess: StateFlow<Boolean> = aiStateHolder.aiSuccess
-    val aiStatus: StateFlow<String?> = aiStateHolder.aiStatus
-    val aiError: StateFlow<String?> = aiStateHolder.aiError
 
     private val _selectedSongForInfo = MutableStateFlow<Song?>(null)
     val selectedSongForInfo: StateFlow<Song?> = _selectedSongForInfo.asStateFlow()
@@ -487,61 +375,6 @@ class PlayerViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = CarouselStyle.NO_PEEK
-        )
-
-    val hasActiveAiProviderApiKey: StateFlow<Boolean> = combine(
-        aiPreferencesRepository.aiProvider,
-        aiPreferencesRepository.geminiApiKey,
-        aiPreferencesRepository.deepseekApiKey,
-        aiPreferencesRepository.groqApiKey,
-        aiPreferencesRepository.mistralApiKey,
-        aiPreferencesRepository.nvidiaApiKey,
-        aiPreferencesRepository.kimiApiKey,
-        aiPreferencesRepository.glmApiKey,
-        aiPreferencesRepository.openaiApiKey,
-        aiPreferencesRepository.ollamaApiKey,
-        aiPreferencesRepository.customApiKey,
-        aiPreferencesRepository.openrouterApiKey
-    ) { values ->
-        val provider = values[0]
-        val gemini = values[1]
-        val deepseek = values[2]
-        val groq = values[3]
-        val mistral = values[4]
-        val nvidia = values[5]
-        val kimi = values[6]
-        val glm = values[7]
-        val openai = values[8]
-        val ollama = values[9]
-        val custom = values[10]
-        val openrouter = values[11]
-        when (provider) {
-            "GEMINI" -> gemini.isNotBlank()
-            "DEEPSEEK" -> deepseek.isNotBlank()
-            "GROQ" -> groq.isNotBlank()
-            "MISTRAL" -> mistral.isNotBlank()
-            "NVIDIA" -> nvidia.isNotBlank()
-            "KIMI" -> kimi.isNotBlank()
-            "GLM" -> glm.isNotBlank()
-            "OPENAI" -> openai.isNotBlank()
-            "OPENROUTER" -> openrouter.isNotBlank()
-            "OLLAMA" -> ollama.isNotBlank()
-            "CUSTOM" -> custom.isNotBlank()
-            else -> false
-        }
-    }.distinctUntilChanged()
-        .stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = false
-    )
-
-    val hasGeminiApiKey: StateFlow<Boolean> = aiPreferencesRepository.geminiApiKey
-        .map { it.isNotBlank() }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = false
         )
 
     val fullPlayerLoadingTweaks: StateFlow<FullPlayerLoadingTweaks> = userPreferencesRepository.fullPlayerLoadingTweaksFlow
@@ -663,8 +496,6 @@ class PlayerViewModel @Inject constructor(
     val albumNavigationRequests = _albumNavigationRequests.asSharedFlow()
     private val _artistNavigationRequests = MutableSharedFlow<Long>(extraBufferCapacity = 1)
     val artistNavigationRequests = _artistNavigationRequests.asSharedFlow()
-    private val _searchNavDoubleTapEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val searchNavDoubleTapEvents = _searchNavDoubleTapEvents.asSharedFlow()
     
     // New event for scrolling to a specific index in the songs list
     private val _scrollToIndexEvent = MutableSharedFlow<Int>(extraBufferCapacity = 1)
@@ -680,14 +511,7 @@ class PlayerViewModel @Inject constructor(
             try {
                 val sortOption = playerUiState.value.currentSongSortOption
                 
-                // Logic must match effectiveStorageFilter in LibraryStateHolder
-                val baseFilter = playerUiState.value.currentStorageFilter
-                val hideLocal = playerUiState.value.hideLocalMedia
-                val storageFilter = if (hideLocal) {
-                    com.theveloper.pixelplay.data.model.StorageFilter.ONLINE
-                } else {
-                    baseFilter
-                }
+                val storageFilter = playerUiState.value.currentStorageFilter
 
                 val sortedIds = musicRepository.getSongIdsSorted(sortOption, storageFilter)
 
@@ -728,16 +552,6 @@ class PlayerViewModel @Inject constructor(
     suspend fun getSongsForCurrentFavoriteSelection(): List<Song> =
         playbackDispatchStateHolder.getSongsForCurrentFavoriteSelection()
 
-    val castRoutes: StateFlow<List<MediaRouter.RouteInfo>> = castStateHolder.castRoutes
-    val selectedRoute: StateFlow<MediaRouter.RouteInfo?> = castStateHolder.selectedRoute
-    /** Pre-mapped so UI composables don't create a new Flow on every recomposition. */
-    val selectedRouteName: StateFlow<String?> = castStateHolder.selectedRoute
-        .map { it?.name }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-    val routeVolume: StateFlow<Int> = castStateHolder.routeVolume
-    val isRefreshingRoutes: StateFlow<Boolean> = castStateHolder.isRefreshingRoutes
-
     // Connectivity state delegated to ConnectivityStateHolder
     val isWifiEnabled: StateFlow<Boolean> = connectivityStateHolder.isWifiEnabled
     val isWifiRadioOn: StateFlow<Boolean> = connectivityStateHolder.isWifiRadioOn
@@ -751,12 +565,8 @@ class PlayerViewModel @Inject constructor(
 
     // Connectivity is now managed by ConnectivityStateHolder
 
-    // Cast state is now managed by CastStateHolder
-    private val sessionManager: SessionManager? get() = castStateHolder.sessionManager
-
-    val isRemotePlaybackActive: StateFlow<Boolean> = castStateHolder.isRemotePlaybackActive
-    val isCastConnecting: StateFlow<Boolean> = castStateHolder.isCastConnecting
-    val remotePosition: StateFlow<Long> = castStateHolder.remotePosition
+    val isRemotePlaybackActive: StateFlow<Boolean> = MutableStateFlow(false).asStateFlow()
+    val remotePosition: StateFlow<Long> = MutableStateFlow(0L).asStateFlow()
 
     private val _trackVolume = MutableStateFlow(1.0f)
     val trackVolume: StateFlow<Float> = _trackVolume.asStateFlow()
@@ -766,12 +576,7 @@ class PlayerViewModel @Inject constructor(
         listeningStatsTracker.initialize(viewModelScope)
         dailyMixStateHolder.initialize(viewModelScope)
         lyricsStateHolder.initialize(viewModelScope, lyricsLoadCallback, playbackStateHolder.stablePlayerState)
-        playbackStateHolder.initialize(
-            coroutineScope = viewModelScope,
-            onCastSeekBlocked = {
-                sendToast(context.getString(R.string.cast_seek_unavailable_for_format))
-            }
-        )
+        playbackStateHolder.initialize(coroutineScope = viewModelScope)
         themeStateHolder.initialize(viewModelScope)
         playbackDispatchStateHolder.initialize(playbackDispatchCallbacks())
         mediaControllerSyncStateHolder.initialize(controllerSyncCallbacks())
@@ -1003,7 +808,6 @@ class PlayerViewModel @Inject constructor(
         sendToast = ::sendToast,
         emitToast = { _toastEvents.emit(it) },
         showNoInternetDialog = { _showNoInternetDialog.tryEmit(Unit) },
-        ensureTelegramObservers = ::ensureTelegramPlaybackObserversStarted,
         cancelTransitionScheduler = { mediaControllerSyncStateHolder.cancelTransitionScheduler() },
         incrementSongScore = ::incrementSongScore,
         resetPredictiveBackState = ::resetPredictiveBackState,
@@ -1024,7 +828,6 @@ class PlayerViewModel @Inject constructor(
         setTrackVolume = { _trackVolume.value = it },
         emitToast = { _toastEvents.emit(it) },
         showNoInternetDialog = { _showNoInternetDialog.emit(Unit) },
-        ensureTelegramObservers = ::ensureTelegramPlaybackObserversStarted,
         cancelSleepTimerForEot = { cancelSleepTimer(suppressDefaultToast = true) },
         resetLyricsSearchState = ::resetLyricsSearchState,
         loadLyricsForCurrentSong = ::loadLyricsForCurrentSong,
@@ -1045,10 +848,6 @@ class PlayerViewModel @Inject constructor(
         emitToast = { _toastEvents.emit(it) },
         favoriteSongIds = { favoriteSongIds.value },
     )
-
-    fun onSearchNavIconDoubleTapped() {
-        _searchNavDoubleTapEvents.tryEmit(Unit)
-    }
 
 
     // Last Library Tab Index
@@ -1147,24 +946,8 @@ class PlayerViewModel @Inject constructor(
             initialValue = 0
         )
 
-    val hasCloudSongsFlow: StateFlow<Boolean?> = musicRepository.getCloudSongCountFlow()
-        .map<Int, Boolean?> { it > 0 }
-        .distinctUntilChanged()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = null
-        )
-
     val albumsFlow: StateFlow<ImmutableList<Album>> = libraryStateHolder.albums
     val artistsFlow: StateFlow<ImmutableList<Artist>> = libraryStateHolder.artists
-
-    var searchQuery by mutableStateOf("")
-        private set
-
-    fun updateSearchQuery(query: String) {
-        searchQuery = query
-    }
 
     private var mediaController: MediaController? = null
     private val _isMediaControllerReady = MutableStateFlow(false)
@@ -1263,8 +1046,8 @@ class PlayerViewModel @Inject constructor(
         immersiveLyricsEnabled,
         immersiveLyricsTimeout,
         isImmersiveTemporarilyDisabled,
-        isRemotePlaybackActive,
-        combine(selectedRouteName, bluetoothSlice) { route, bt -> route to bt }
+        flowOf(false),
+        combine(flowOf<String?>(null), bluetoothSlice) { route, bt -> route to bt }
     ) { immersive: Boolean, immersiveTimeout: Long, immersiveDisabled: Boolean,
         remotePb: Boolean, routeAndBt: Pair<String?, BluetoothSlice> ->
         val (routeName, bt) = routeAndBt
@@ -1436,9 +1219,6 @@ class PlayerViewModel @Inject constructor(
         )
     }
 
-    private var castSongUiSyncJob: Job? = null
-    private var lastCastSongUiSyncedId: String? = null
-
     private fun incrementSongScore(song: Song) {
         listeningStatsTracker.onVoluntarySelection(song.id)
     }
@@ -1462,10 +1242,6 @@ class PlayerViewModel @Inject constructor(
 
     fun updateQueueSheetVisibility(visible: Boolean) {
         _isQueueSheetVisible.value = visible
-    }
-
-    fun updateCastSheetVisibility(visible: Boolean) {
-        _isCastSheetVisible.value = visible
     }
 
     // Helper to resolve stored sort keys against the allowed group
@@ -1517,15 +1293,6 @@ class PlayerViewModel @Inject constructor(
 
     init {
         Log.i("PlayerViewModel", "init started.")
-
-        // Cast initialization if already connected
-        val currentSession = sessionManager?.currentCastSession
-        if (currentSession != null) {
-            castStateHolder.setCastPlayer(CastPlayer(currentSession, context.contentResolver))
-            castStateHolder.setRemotePlaybackActive(true)
-        }
-
-
 
         viewModelScope.launch {
             userPreferencesRepository.migrateTabOrder()
@@ -1678,7 +1445,6 @@ class PlayerViewModel @Inject constructor(
         // launchColorSchemeProcessor() - Handled by ThemeStateHolder and on-demand calls
 
         loadPersistedDailyMix()
-        loadSearchHistory()
 
         viewModelScope.launch {
             isSyncingStateFlow.collect { isSyncing ->
@@ -1718,27 +1484,6 @@ class PlayerViewModel @Inject constructor(
             }
         }, ContextCompat.getMainExecutor(context))
 
-
-        // Start Cast discovery
-        castStateHolder.startDiscovery()
-
-        // Observe selection for HTTP server management
-        viewModelScope.launch {
-            castStateHolder.selectedRoute.collect { route ->
-                if (route != null && !route.isDefault && route.supportsControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK)) {
-                    castTransferStateHolder.primeHttpServerStart()
-                } else if (route?.isDefault == true) {
-                    val hasActiveRemoteSession = castStateHolder.castSession.value?.remoteMediaClient != null ||
-                            castStateHolder.isRemotePlaybackActive.value ||
-                            castStateHolder.isCastConnecting.value
-                    if (hasActiveRemoteSession) {
-                        return@collect
-                    }
-                    context.stopService(Intent(context, MediaFileHttpServerService::class.java))
-                }
-            }
-        }
-
         // Initialize connectivity monitoring (WiFi/Bluetooth)
         connectivityStateHolder.initialize()
 
@@ -1750,64 +1495,6 @@ class PlayerViewModel @Inject constructor(
             currentSongIdProvider = { stablePlayerState.map { it.currentSong?.id }.stateIn(viewModelScope, SharingStarted.Eagerly, null) },
             songTitleResolver = { songId -> libraryStateHolder.allSongsById.value[songId]?.title ?: "Unknown" }
         )
-
-        // Initialize SearchStateHolder
-        searchStateHolder.initialize(viewModelScope)
-
-        // Collect SearchStateHolder flows
-        viewModelScope.launch {
-            combine(
-                searchStateHolder.searchResults,
-                searchStateHolder.selectedSearchFilter,
-                searchStateHolder.searchHistory,
-            ) { results, filter, history ->
-                Triple(results, filter, history)
-            }.collect { (results, filter, history) ->
-                _playerUiState.update {
-                    it.copy(
-                        searchResults = results,
-                        selectedSearchFilter = filter,
-                        searchHistory = history,
-                    )
-                }
-            }
-        }
-
-        // Initialize AiStateHolder
-        aiStateHolder.initialize(
-            scope = viewModelScope,
-            allSongsProvider = { musicRepository.getAllSongsOnce() },
-            favoriteSongIdsProvider = { favoriteSongIds.value },
-            toastEmitter = { msg -> viewModelScope.launch { _toastEvents.emit(msg) } },
-            playSongsCallback = { songs, startSong, queueName -> playSongs(songs, startSong, queueName) },
-            openPlayerSheetCallback = { _isSheetVisible.value = true }
-        )
-
-        // Collect AiStateHolder flows for playlist generation state
-        viewModelScope.launch {
-            combine(
-                aiStateHolder.showAiPlaylistSheet,
-                aiStateHolder.isGeneratingAiPlaylist,
-                aiStateHolder.aiStatus,
-                aiStateHolder.aiError,
-            ) { show, generating, status, error ->
-                AiUiSnapshot(
-                    showAiPlaylistSheet = show,
-                    isGeneratingAiPlaylist = generating,
-                    aiStatus = status,
-                    aiError = error
-                )
-            }.collect { snapshot ->
-                _playerUiState.update {
-                    it.copy(
-                        showAiPlaylistSheet = snapshot.showAiPlaylistSheet,
-                        isGeneratingAiPlaylist = snapshot.isGeneratingAiPlaylist,
-                        aiStatus = snapshot.aiStatus,
-                        aiError = snapshot.aiError
-                    )
-                }
-            }
-        }
 
         // Initialize LibraryStateHolder
         libraryStateHolder.initialize(viewModelScope)
@@ -1863,43 +1550,6 @@ class PlayerViewModel @Inject constructor(
                 _playerUiState.update { it.copy(hideLocalMedia = hide) }
             }
         }
-
-
-        castTransferStateHolder.initialize(
-            scope = viewModelScope,
-            getCurrentQueue = { _playerUiState.value.currentPlaybackQueue },
-            updateQueue = { newQueue ->
-                _playerUiState.update {
-                    it.copy(currentPlaybackQueue = newQueue.toPlaybackQueue())
-                }
-            },
-            getSongsByIdMap = { libraryStateHolder.allSongsById.value },
-            onTransferBackComplete = { startProgressUpdates() },
-            onSheetVisible = { _isSheetVisible.value = true },
-            onDisconnect = { disconnect() },
-            onCastError = { message ->
-                viewModelScope.launch { _toastEvents.emit(message) }
-            },
-            onSongChanged = { uriString ->
-                castSongUiSyncJob?.cancel()
-                castSongUiSyncJob = viewModelScope.launch {
-                    delay(220)
-                    val currentSongId = stablePlayerState.value.currentSong?.id
-                    if (currentSongId != null && currentSongId == lastCastSongUiSyncedId) {
-                        return@launch
-                    }
-                    loadLyricsForCurrentSong()
-                    uriString?.toUri()?.let { uri ->
-                        themeStateHolder.extractAndGenerateColorScheme(uri, uriString)
-                    }
-                    if (currentSongId != null) {
-                        lastCastSongUiSyncedId = currentSongId
-                    }
-                }
-            }
-        )
-
-
 
         viewModelScope.launch {
             // Repeat preference is only a startup restore value.
@@ -1988,10 +1638,6 @@ class PlayerViewModel @Inject constructor(
     fun loadArtistsIfNeeded() = libraryStateHolder.loadArtistsIfNeeded()
     fun loadFoldersFromRepository() = libraryStateHolder.loadFoldersFromRepository()
 
-    fun setStorageFilter(filter: com.theveloper.pixelplay.data.model.StorageFilter) {
-        libraryStateHolder.setStorageFilter(filter)
-    }
-
     fun setPlaylistPickerStorageFilter(filter: com.theveloper.pixelplay.data.model.StorageFilter) {
         _playlistPickerStorageFilter.value = filter
     }
@@ -2000,16 +1646,6 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.setHideLocalMedia(hide)
         }
-    }
-
-    fun toggleStorageFilter() {
-        val current = _playerUiState.value.currentStorageFilter
-        val next = when (current) {
-            com.theveloper.pixelplay.data.model.StorageFilter.ALL -> com.theveloper.pixelplay.data.model.StorageFilter.ONLINE
-            com.theveloper.pixelplay.data.model.StorageFilter.ONLINE -> com.theveloper.pixelplay.data.model.StorageFilter.OFFLINE
-            com.theveloper.pixelplay.data.model.StorageFilter.OFFLINE -> com.theveloper.pixelplay.data.model.StorageFilter.ALL
-        }
-        setStorageFilter(next)
     }
 
     fun showAndPlaySong(
@@ -2554,69 +2190,7 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun updateSearchFilter(filterType: SearchFilterType) {
-        searchStateHolder.updateSearchFilter(filterType)
-    }
-
-    fun loadSearchHistory(limit: Int = 15) {
-        searchStateHolder.loadSearchHistory(limit)
-    }
-
-    fun onSearchQuerySubmitted(query: String) {
-        searchStateHolder.onSearchQuerySubmitted(query)
-    }
-
-    fun performSearch(query: String) {
-        searchStateHolder.performSearch(query)
-    }
-
-    fun deleteSearchHistoryItem(query: String) {
-        searchStateHolder.deleteSearchHistoryItem(query)
-    }
-
-    fun clearSearchHistory() {
-        searchStateHolder.clearSearchHistory()
-    }
-
     // --- AI Playlist Generation ---
-
-    // --- AI Playlist Generation ---
-
-    fun showAiPlaylistSheet() {
-        aiStateHolder.showAiPlaylistSheet()
-    }
-
-    fun dismissAiPlaylistSheet() {
-        aiStateHolder.dismissAiPlaylistSheet()
-    }
-
-    fun clearAiPlaylistError() {
-        aiStateHolder.clearAiPlaylistError()
-    }
-
-    fun generateAiPlaylist(
-        prompt: String,
-        minLength: Int,
-        maxLength: Int,
-        saveAsPlaylist: Boolean = false,
-        playlistName: String? = null
-    ) {
-        aiStateHolder.generateAiPlaylist(
-            prompt = prompt,
-            minLength = minLength,
-            maxLength = maxLength,
-            saveAsPlaylist = saveAsPlaylist,
-            playlistName = playlistName
-        )
-    }
-
-    fun regenerateDailyMixWithPrompt(prompt: String) {
-        aiStateHolder.regenerateDailyMixWithPrompt(prompt)
-    }
-
-    fun retryLastPlaylistGeneration() {
-        aiStateHolder.retryLastPlaylistGeneration()
-    }
 
     fun clearQueueExceptCurrent() {
         mediaController?.let { controller ->
@@ -2632,26 +2206,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun selectRoute(route: MediaRouter.RouteInfo) {
-        castRouteStateHolder.selectRoute(route) { message ->
-            viewModelScope.launch { _toastEvents.emit(message) }
-        }
-    }
-
-    fun disconnect(resetConnecting: Boolean = true) {
-        castRouteStateHolder.disconnect(resetConnecting = resetConnecting)
-    }
-
-    fun setRouteVolume(volume: Int) {
-        castRouteStateHolder.setRouteVolume(volume)
-    }
-
-    fun refreshCastRoutes() {
-        castRouteStateHolder.refreshCastRoutes(viewModelScope)
-    }
-
-
-
     override fun onCleared() {
         val controllerToRelease = mediaController
         mediaControllerSyncStateHolder.clearMediaControllerPlaybackListeners(controllerToRelease)
@@ -2661,17 +2215,12 @@ class PlayerViewModel @Inject constructor(
         mediaControllerFuture.cancel(true)
         super.onCleared()
         playbackDispatchStateHolder.onCleared()
-        castSongUiSyncJob?.cancel()
         stopProgressUpdates()
         playbackStateHolder.onCleared()
         listeningStatsTracker.onCleared()
         dailyMixStateHolder.onCleared()
         lyricsStateHolder.onCleared()
         themeStateHolder.onCleared()
-        castTransferStateHolder.onCleared()
-        castStateHolder.onCleared()
-        searchStateHolder.onCleared()
-        aiStateHolder.onCleared()
         libraryStateHolder.onCleared()
         sleepTimerStateHolder.onCleared()
         connectivityStateHolder.onCleared()
@@ -2711,18 +2260,7 @@ class PlayerViewModel @Inject constructor(
             position = playbackStateHolder.currentPosition.value,
             getUiState = { _playerUiState.value },
             updateUiState = { mutation -> _playerUiState.update(mutation) },
-            disconnectRemoteIfNeeded = {
-                val hasCastSession = castStateHolder.castSession.value != null
-                val shouldDisconnectRemote = hasCastSession ||
-                    castStateHolder.isRemotePlaybackActive.value ||
-                    castStateHolder.isCastConnecting.value
-                if (shouldDisconnectRemote) {
-                    if (hasCastSession) {
-                        castTransferStateHolder.skipNextTransferBack()
-                    }
-                    disconnect()
-                }
-            },
+            disconnectRemoteIfNeeded = {},
             clearPlayback = {
                 mediaController?.stop()
                 mediaController?.clearMediaItems()
@@ -2960,19 +2498,6 @@ class PlayerViewModel @Inject constructor(
         lyricsStateHolder.importLyricsFromFile(songId, validatedImport, currentSong)
     }
 
-    fun translateLyricsViaAi() {
-        val currentSong = stablePlayerState.value.currentSong ?: return
-        lyricsStateHolder.translateLyricsViaAi(
-            currentSong = currentSong,
-            lyricsObj = stablePlayerState.value.lyrics,
-            cb = LyricsTranslationCallbacks(
-                translate = { rawLyrics -> aiStateHolder.translateLyrics(rawLyrics) },
-                getString = { resId -> context.getString(resId) },
-                getErrorString = { detail -> context.getString(R.string.ai_state_error_generic, detail) }
-            )
-        )
-    }
-
     /**
      * Resetea el estado de la búsqueda de letras a Idle.
      */
@@ -2998,30 +2523,6 @@ class PlayerViewModel @Inject constructor(
 
             _isSheetVisible.value = true
             _sheetState.value = PlayerSheetState.EXPANDED
-        }
-    }
-
-    fun prepareBenchmarkPlayerFromLibrary() {
-        viewModelScope.launch {
-            repeat(90) { attempt ->
-                val controllerReady = mediaController != null
-                val songs = withContext(Dispatchers.IO) {
-                    musicRepository.getAllSongsOnce()
-                }
-                Log.i(
-                    "PixelPlayBenchmark",
-                    "prepare player attempt=$attempt controllerReady=$controllerReady songs=${songs.size}"
-                )
-                if (controllerReady && songs.isNotEmpty()) {
-                    playSongs(songs, songs.first(), "Benchmark Player")
-                    delay(700L)
-                    collapsePlayerSheet()
-                    Log.i("PixelPlayBenchmark", "Benchmark player prepared with ${songs.first().title}")
-                    return@launch
-                }
-                delay(500L)
-            }
-            Log.w("PixelPlayBenchmark", "Unable to prepare benchmark player from library")
         }
     }
 
@@ -3060,58 +2561,5 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferencesRepository.addCustomGenre(genre, iconResId)
         }
-    }
-}
-
-internal fun Song.withRepositoryHydration(repositorySong: Song): Song {
-    if (id != repositorySong.id) return this
-
-    val hydratedArtworkUri = when {
-        repositorySong.albumArtUriString.isNullOrBlank() -> albumArtUriString
-        albumArtUriString.isNullOrBlank() -> repositorySong.albumArtUriString
-        areEquivalentArtworkUrisForSong(id, albumArtUriString, repositorySong.albumArtUriString) ->
-            albumArtUriString
-        else -> repositorySong.albumArtUriString
-    }
-
-    return repositorySong.copy(
-        contentUriString = repositorySong.contentUriString.ifBlank { contentUriString },
-        albumArtUriString = hydratedArtworkUri,
-        duration = repositorySong.duration.takeIf { it > 0L } ?: duration,
-        lyrics = repositorySong.lyrics ?: lyrics
-    )
-}
-
-internal fun areEquivalentArtworkUrisForSong(
-    songId: String,
-    firstUri: String?,
-    secondUri: String?
-): Boolean {
-    if (firstUri == secondUri) return true
-    if (firstUri.isNullOrBlank() || secondUri.isNullOrBlank()) return false
-
-    val targetSongId = songId.toLongOrNull() ?: return false
-
-    fun resolveUriSongId(uri: String): Long? {
-        return LocalArtworkUri.parseSongId(uri)
-            ?: SharedArtworkContentProvider.parseSongId(uri)
-    }
-
-    val firstSongId = resolveUriSongId(firstUri)
-    val secondSongId = resolveUriSongId(secondUri)
-    return firstSongId == targetSongId && secondSongId == targetSongId
-}
-
-internal fun Song.improvesLyricsLookupComparedTo(previousSong: Song): Boolean {
-    return (previousSong.lyrics.isNullOrBlank() && !lyrics.isNullOrBlank()) ||
-        (previousSong.path.isBlank() && path.isNotBlank()) ||
-        (previousSong.contentUriString.isBlank() && contentUriString.isNotBlank())
-}
-
-internal fun parsePersistedLyrics(rawLyrics: String?): Lyrics? {
-    val normalizedLyrics = rawLyrics?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    val parsedLyrics = LyricsUtils.parseLyrics(normalizedLyrics)
-    return parsedLyrics.takeIf {
-        !it.synced.isNullOrEmpty() || !it.plain.isNullOrEmpty()
     }
 }

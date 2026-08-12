@@ -110,26 +110,42 @@ val LightColorScheme = lightColorScheme(
 fun PixelPlayTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     colorSchemePairOverride: ColorSchemePair? = null,
+    transparentBackground: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val finalColorScheme = when {
+    val baseColorScheme = when {
         colorSchemePairOverride == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            // Tema dinámico del sistema como prioridad si no hay override
             try {
                 if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
             } catch (e: Exception) {
-                // Fallback a los defaults si dynamic colors falla (raro, pero posible en algunos dispositivos)
                 if (darkTheme) DarkColorScheme else LightColorScheme
             }
         }
         colorSchemePairOverride != null -> {
-            // Usar el esquema del álbum si se proporciona
             if (darkTheme) colorSchemePairOverride.dark else colorSchemePairOverride.light
         }
-        // Fallback final a los defaults si no hay override ni dynamic colors aplicables
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
+    }
+
+    val finalColorScheme = if (transparentBackground) {
+        baseColorScheme.copy(
+            background = baseColorScheme.background.copy(alpha = 0.08f),
+            surface = baseColorScheme.surface.copy(alpha = 0.08f),
+            surfaceContainer = baseColorScheme.surfaceContainer.copy(alpha = 0.08f),
+            surfaceContainerHigh = baseColorScheme.surfaceContainerHigh.copy(alpha = 0.08f),
+            surfaceContainerHighest = baseColorScheme.surfaceContainerHighest.copy(alpha = 0.08f),
+            surfaceContainerLow = baseColorScheme.surfaceContainerLow.copy(alpha = 0.08f),
+            surfaceContainerLowest = baseColorScheme.surfaceContainerLowest.copy(alpha = 0.08f),
+            surfaceVariant = baseColorScheme.surfaceVariant.copy(alpha = 0.08f),
+            surfaceTint = baseColorScheme.surfaceTint.copy(alpha = 0.08f),
+            primaryContainer = baseColorScheme.primaryContainer.copy(alpha = 0.08f),
+            secondaryContainer = baseColorScheme.secondaryContainer.copy(alpha = 0.08f),
+            tertiaryContainer = baseColorScheme.tertiaryContainer.copy(alpha = 0.08f),
+        )
+    } else {
+        baseColorScheme
     }
 
     PixelPlayStatusBarStyle(

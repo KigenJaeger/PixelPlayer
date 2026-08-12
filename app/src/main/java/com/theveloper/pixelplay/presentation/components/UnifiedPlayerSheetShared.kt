@@ -64,7 +64,6 @@ fun getNavigationBarHeight(): Dp {
 internal fun MiniPlayerContentInternal(
     song: Song,
     isPlaying: Boolean,
-    isCastConnecting: Boolean,
     isPreparingPlayback: Boolean,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
@@ -73,7 +72,7 @@ internal fun MiniPlayerContentInternal(
     canScroll: Boolean = true
 ) {
     val hapticFeedback = LocalHapticFeedback.current
-    val controlsEnabled = !isCastConnecting && !isPreparingPlayback
+    val controlsEnabled = !isPreparingPlayback
 
     val previousInteraction = remember { MutableInteractionSource() }
     val playPauseInteraction = remember { MutableInteractionSource() }
@@ -101,13 +100,7 @@ internal fun MiniPlayerContentInternal(
                     } else null
                 )
             }
-            if (isCastConnecting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp,
-                    color = LocalMaterialTheme.current.onPrimaryContainer
-                )
-            } else if (isPreparingPlayback) {
+            if (isPreparingPlayback) {
                 CircularWavyProgressIndicator(modifier = Modifier.size(24.dp))
             }
         }
@@ -131,11 +124,7 @@ internal fun MiniPlayerContentInternal(
             )
 
             AutoScrollingText(
-                text = when {
-                    isCastConnecting -> "Connecting to device…"
-                    isPreparingPlayback -> "Preparing playback…"
-                    else -> song.title
-                },
+                text = if (isPreparingPlayback) "Preparing playback…" else song.title,
                 style = titleStyle,
                 gradientEdgeColor = LocalMaterialTheme.current.primaryContainer,
                 canScroll = canScroll

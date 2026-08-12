@@ -17,7 +17,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.Density
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlin.math.max
 
 internal data class SheetOverlayState(
     val internalIsKeyboardVisible: Boolean,
@@ -37,7 +36,6 @@ internal fun rememberSheetOverlayState(
     isQueueCollapsing: Boolean,
     queueHiddenOffsetPx: Float,
     screenHeightPx: Float,
-    castSheetOpenFraction: Float,
     queueSheetOffset: Animatable<Float, AnimationVector1D>,
     queuePredictiveBackProgress: Animatable<Float, AnimationVector1D>
 ): SheetOverlayState {
@@ -91,8 +89,8 @@ internal fun rememberSheetOverlayState(
     }
     val queueVisualOpenFraction by queueVisualOpenFractionState
  
-    val bottomSheetOpenFractionState = remember(queueVisualOpenFractionState, castSheetOpenFraction) {
-        derivedStateOf { max(queueVisualOpenFractionState.value, castSheetOpenFraction) }
+    val bottomSheetOpenFractionState = remember(queueVisualOpenFractionState) {
+        derivedStateOf { queueVisualOpenFractionState.value }
     }
     val bottomSheetOpenFraction by bottomSheetOpenFractionState
  

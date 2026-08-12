@@ -70,6 +70,9 @@
     <string name="library_cd_create_new_playlist">Create new playlist</string>
     <string name="library_cd_import_m3u_playlist">Import M3U playlist</string>
     <string name="library_cd_locate_current_song">Locate current song</string>
+    <string name="library_search_local_title">Search library</string>
+    <string name="library_search_local_hint">Search songs, artists, or albums</string>
+    <string name="library_search_local_empty">Type to search your library.</string>
     <string name="library_storage_filter_all_songs">All songs</string>
     <string name="library_storage_filter_online">CLOUD</string>
     <string name="library_storage_filter_offline">LOCAL</string>
@@ -89,7 +92,6 @@
     <string name="library_sync_pending">Waiting…</string>
     <string name="library_syncing">Syncing library…</string>
     <string name="library_sync_cache">Cleaning album art cache…</string>
-    <string name="library_sync_cloud">Syncing cloud sources…</string>
     <string name="library_sync_lyrics">Scanning lyrics…</string>
 
     <!-- Library Empty State -->

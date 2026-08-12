@@ -2,8 +2,6 @@ package com.theveloper.pixelplay.presentation.model
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DeveloperBoard
-import androidx.compose.material.icons.rounded.DeveloperMode
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LibraryMusic
@@ -43,35 +41,17 @@ enum class SettingsCategory(
         subtitleRes = R.string.settings_category_behavior_subtitle,
         iconRes = R.drawable.rounded_touch_app_24
     ),
-    AI_INTEGRATION(
-        id = "ai",
-        titleRes = R.string.settings_category_ai_title,
-        subtitleRes = R.string.settings_category_ai_subtitle,
-        iconRes = R.drawable.gemini_ai
-    ),
     BACKUP_RESTORE(
         id = "backup_restore",
         titleRes = R.string.settings_category_backup_title,
         subtitleRes = R.string.settings_category_backup_subtitle,
         iconRes = R.drawable.rounded_upload_file_24
     ),
-    DEVELOPER(
-        id = "developer",
-        titleRes = R.string.settings_category_developer_title,
-        subtitleRes = R.string.settings_category_developer_subtitle,
-        icon = Icons.Rounded.DeveloperMode
-    ),
     EQUALIZER(
         id = "equalizer",
         titleRes = R.string.settings_category_equalizer_title,
         subtitleRes = R.string.settings_category_equalizer_subtitle,
         icon = Icons.Rounded.GraphicEq
-    ),
-    DEVICE_CAPABILITIES(
-        id = "device_capabilities",
-        titleRes = R.string.settings_category_device_capabilities_title,
-        subtitleRes = R.string.settings_category_device_capabilities_subtitle,
-        icon = Icons.Rounded.DeveloperBoard // Placeholder, maybe Memory or SettingsInputComponent
     ),
     ABOUT(
         id = "about",

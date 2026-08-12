@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.size.Size
 import com.theveloper.pixelplay.data.model.Song
+import com.theveloper.pixelplay.ui.theme.ReadableOverlayTheme
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -147,21 +148,23 @@ fun MultiSelectionBottomSheet(
         )
     }
     
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Box(
-            modifier = Modifier
-                .animateContentSize(animationSpec = tween(durationMillis = 200))
-                .fillMaxWidth(),
-            contentAlignment = Alignment.TopCenter
+    ReadableOverlayTheme {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
-            Column(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .animateContentSize(animationSpec = tween(durationMillis = 200))
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
                 // Header with stacked album arts and count - row anchored left
                 Row(
                     modifier = Modifier
@@ -477,9 +480,10 @@ fun MultiSelectionBottomSheet(
                     }
                 }
             }
+                }
+            }
         }
     }
-}
 
 /**
  * Displays stacked album art images with overlap effect for the bottom sheet header.

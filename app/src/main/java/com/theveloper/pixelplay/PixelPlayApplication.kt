@@ -14,9 +14,7 @@ import androidx.work.Configuration
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
-import com.theveloper.pixelplay.data.diagnostics.AdvancedPerformanceDiagnosticsController
 import com.theveloper.pixelplay.data.repository.ArtistImageRepository
-import com.theveloper.pixelplay.data.telegram.TelegramRepository
 import com.theveloper.pixelplay.presentation.viewmodel.LibraryStateHolder
 import com.theveloper.pixelplay.presentation.viewmodel.ThemeStateHolder
 import com.theveloper.pixelplay.utils.AlbumArtCacheManager
@@ -43,15 +41,6 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     lateinit var imageLoader: dagger.Lazy<ImageLoader>
 
     @Inject
-    lateinit var telegramCoilFetcherFactory: dagger.Lazy<com.theveloper.pixelplay.data.image.TelegramCoilFetcher.Factory>
-
-    @Inject
-    lateinit var navidromeCoilFetcherFactory: dagger.Lazy<com.theveloper.pixelplay.data.image.NavidromeCoilFetcher.Factory>
-
-    @Inject
-    lateinit var jellyfinCoilFetcherFactory: dagger.Lazy<com.theveloper.pixelplay.data.image.JellyfinCoilFetcher.Factory>
-
-    @Inject
     lateinit var localArtworkCoilFetcherFactory: dagger.Lazy<com.theveloper.pixelplay.data.image.LocalArtworkCoilFetcher.Factory>
 
     @Inject
@@ -61,16 +50,10 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
     lateinit var artistImageRepository: dagger.Lazy<ArtistImageRepository>
 
     @Inject
-    lateinit var telegramRepository: dagger.Lazy<TelegramRepository>
-
-    @Inject
     lateinit var libraryStateHolder: dagger.Lazy<LibraryStateHolder>
 
     @Inject
     lateinit var userPreferencesRepository: dagger.Lazy<UserPreferencesRepository>
-
-    @Inject
-    lateinit var advancedPerformanceDiagnosticsController: dagger.Lazy<AdvancedPerformanceDiagnosticsController>
 
     private val startupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -95,11 +78,7 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
         instance = this
         super.onCreate()
 
-        // Benchmark variant intentionally restarts/kills app process during tests.
-        // Avoid persisting those events as user-facing crash reports.
-        if (BuildConfig.BUILD_TYPE != "benchmark") {
-            CrashHandler.install(this)
-        }
+        CrashHandler.install(this)
 
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
@@ -119,8 +98,6 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
         }
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(appLifecycleObserver)
-        advancedPerformanceDiagnosticsController.get().start(startupScope)
-
         startupScope.launch {
             AlbumArtUtils.migrateLegacyCacheLocation(this@PixelPlayApplication)
             val savedLimit = runCatching {
@@ -136,9 +113,6 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
         return imageLoader.get().newBuilder()
             .components {
                 add(localArtworkCoilFetcherFactory.get())
-                add(telegramCoilFetcherFactory.get())
-                add(navidromeCoilFetcherFactory.get())
-                add(jellyfinCoilFetcherFactory.get())
             }
             .build()
     }
@@ -163,7 +137,6 @@ class PixelPlayApplication : Application(), ImageLoaderFactory, Configuration.Pr
             level == ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN
         ) {
             artistImageRepository.get().clearCache()
-            telegramRepository.get().clearMemoryCache()
             MediaMetadataRetrieverPool.clear()
         }
 

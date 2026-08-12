@@ -15,28 +15,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ArtistEntity::class,
         TransitionRuleEntity::class,
         SongArtistCrossRef::class,
-        TelegramSongEntity::class,
-        TelegramChannelEntity::class,
         SongEngagementEntity::class,
         FavoritesEntity::class,
         LyricsEntity::class,
-        NeteaseSongEntity::class,
-        NeteasePlaylistEntity::class,
-        GDriveSongEntity::class,
-        GDriveFolderEntity::class,
         PlaylistEntity::class,
-        PlaylistSongEntity::class,
-        QqMusicSongEntity::class,
-        QqMusicPlaylistEntity::class,
-        NavidromeSongEntity::class,
-        NavidromePlaylistEntity::class,
-        TelegramTopicEntity::class,
-        JellyfinSongEntity::class,
-        JellyfinPlaylistEntity::class,
-        AiCacheEntity::class,
-        AiUsageEntity::class
+        PlaylistSongEntity::class
     ],
-    version = 42,
+    version = 45,
     exportSchema = true
 )
 abstract class PixelPlayDatabase : RoomDatabase() {
@@ -44,18 +29,10 @@ abstract class PixelPlayDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun musicDao(): MusicDao
     abstract fun transitionDao(): TransitionDao
-    abstract fun telegramDao(): TelegramDao
     abstract fun engagementDao(): EngagementDao
     abstract fun favoritesDao(): FavoritesDao
     abstract fun lyricsDao(): LyricsDao
-    abstract fun neteaseDao(): NeteaseDao
-    abstract fun gdriveDao(): GDriveDao
     abstract fun localPlaylistDao(): LocalPlaylistDao
-    abstract fun qqmusicDao(): QqMusicDao
-    abstract fun navidromeDao(): NavidromeDao
-    abstract fun jellyfinDao(): JellyfinDao
-    abstract fun aiCacheDao(): AiCacheDao
-    abstract fun aiUsageDao(): AiUsageDao
 
     companion object {
         // Gap-bridging no-op migrations for missing version ranges.
@@ -353,7 +330,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                 db.execSQL("DROP TABLE IF EXISTS telegram_songs")
                 db.execSQL("DROP TABLE IF EXISTS telegram_channels")
 
-                // Recreate telegram_songs matching TelegramSongEntity exactly
+                // Recreate legacy telegram_songs cache table for migration continuity.
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS telegram_songs (
                         id TEXT NOT NULL PRIMARY KEY,
@@ -370,7 +347,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
 
-                // Recreate telegram_channels matching TelegramChannelEntity exactly
+                // Recreate legacy telegram_channels cache table for migration continuity.
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS telegram_channels (
                         chat_id INTEGER NOT NULL PRIMARY KEY,
@@ -747,6 +724,55 @@ abstract class PixelPlayDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_42_43 = object : Migration(42, 43) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS ai_cache")
+                db.execSQL("DROP TABLE IF EXISTS ai_usage")
+            }
+        }
+
+        val MIGRATION_43_44 = object : Migration(43, 44) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DELETE FROM song_artist_cross_ref WHERE song_id IN (SELECT id FROM songs WHERE source_type != 0)")
+                db.execSQL("DELETE FROM favorites WHERE songId IN (SELECT id FROM songs WHERE source_type != 0)")
+                db.execSQL("DELETE FROM playlist_songs WHERE song_id IN (SELECT CAST(id AS TEXT) FROM songs WHERE source_type != 0)")
+                db.execSQL("DELETE FROM songs WHERE source_type != 0")
+                db.execSQL("DROP TABLE IF EXISTS telegram_songs")
+                db.execSQL("DROP TABLE IF EXISTS telegram_channels")
+                db.execSQL("DROP TABLE IF EXISTS telegram_topics")
+                db.execSQL("DROP TABLE IF EXISTS netease_songs")
+                db.execSQL("DROP TABLE IF EXISTS netease_playlists")
+                db.execSQL("DROP TABLE IF EXISTS gdrive_songs")
+                db.execSQL("DROP TABLE IF EXISTS gdrive_folders")
+                db.execSQL("DROP TABLE IF EXISTS qqmusic_songs")
+                db.execSQL("DROP TABLE IF EXISTS qqmusic_playlists")
+                db.execSQL("DROP TABLE IF EXISTS navidrome_songs")
+                db.execSQL("DROP TABLE IF EXISTS navidrome_playlists")
+                db.execSQL("DROP TABLE IF EXISTS jellyfin_songs")
+                db.execSQL("DROP TABLE IF EXISTS jellyfin_playlists")
+            }
+        }
+
+        val MIGRATION_44_45 = object : Migration(44, 45) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("ALTER TABLE songs DROP COLUMN telegram_chat_id")
+                } catch (_: Exception) {
+                    // Column might not exist
+                }
+                try {
+                    db.execSQL("ALTER TABLE songs DROP COLUMN telegram_file_id")
+                } catch (_: Exception) {
+                    // Column might not exist
+                }
+                try {
+                    db.execSQL("ALTER TABLE playlists DROP COLUMN is_ai_generated")
+                } catch (_: Exception) {
+                    // Column might not exist
+                }
+            }
+        }
+
         private fun ensureSongsTableHasDateAdded(db: SupportSQLiteDatabase) {
             if (!tableExists(db, "songs")) {
                 recreateSongsTable(db)
@@ -799,8 +825,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                         mime_type TEXT,
                         bitrate INTEGER,
                         sample_rate INTEGER,
-                        telegram_chat_id INTEGER,
-                        telegram_file_id INTEGER,
                         PRIMARY KEY(id),
                         FOREIGN KEY(album_id) REFERENCES albums(id) ON UPDATE NO ACTION ON DELETE CASCADE,
                         FOREIGN KEY(artist_id) REFERENCES artists(id) ON UPDATE NO ACTION ON DELETE SET NULL
@@ -836,8 +860,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                 val mimeTypeExpr = columnExpr(columns, "mime_type", "NULL")
                 val bitrateExpr = columnExpr(columns, "bitrate", "NULL")
                 val sampleRateExpr = columnExpr(columns, "sample_rate", "NULL")
-                val telegramChatIdExpr = columnExpr(columns, "telegram_chat_id", "NULL")
-                val telegramFileIdExpr = columnExpr(columns, "telegram_file_id", "NULL")
 
                 db.execSQL(
                     """
@@ -863,9 +885,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                             date_added,
                             mime_type,
                             bitrate,
-                            sample_rate,
-                            telegram_chat_id,
-                            telegram_file_id
+                            sample_rate
                         )
                         SELECT
                             id,
@@ -889,9 +909,7 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                             $dateAddedExpr,
                             $mimeTypeExpr,
                             $bitrateExpr,
-                            $sampleRateExpr,
-                            $telegramChatIdExpr,
-                            $telegramFileIdExpr
+                            $sampleRateExpr
                         FROM songs
                         WHERE id IS NOT NULL
                           AND title IS NOT NULL
@@ -986,7 +1004,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                     val nowMs = "(CAST(strftime('%s','now') AS INTEGER) * 1000)"
                     val createdAtExpr = columnExpr(columns, "created_at", nowMs)
                     val lastModifiedExpr = columnExpr(columns, "last_modified", createdAtExpr)
-                    val isAiGeneratedExpr = columnExpr(columns, "is_ai_generated", "0")
                     val isQueueGeneratedExpr = columnExpr(columns, "is_queue_generated", "0")
                     val coverImageUriExpr = columnExpr(columns, "cover_image_uri", "NULL")
                     val coverColorArgbExpr = columnExpr(columns, "cover_color_argb", "NULL")
@@ -1005,7 +1022,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                                 name,
                                 created_at,
                                 last_modified,
-                                is_ai_generated,
                                 is_queue_generated,
                                 cover_image_uri,
                                 cover_color_argb,
@@ -1022,7 +1038,6 @@ abstract class PixelPlayDatabase : RoomDatabase() {
                                 name,
                                 $createdAtExpr,
                                 $lastModifiedExpr,
-                                $isAiGeneratedExpr,
                                 $isQueueGeneratedExpr,
                                 $coverImageUriExpr,
                                 $coverColorArgbExpr,

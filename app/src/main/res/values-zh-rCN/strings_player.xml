@@ -10,7 +10,6 @@
     <string name="player_connecting">正在连接…</string>
     <string name="player_cd_open_queue">打开队列</string>  
 
-    <!-- CastBottomSheet -->
     <string name="cast_perm_title">准备连接</string>
     <string name="cast_perm_body">允许 PixelPlayer 查看您附近的设备和当前 Wi-Fi，以便我们保持您的投屏、蓝牙音频和扬声器同步。</string>
     <string name="cast_perm_nearby_title">附近设备</string>

@@ -25,7 +25,6 @@ class PlaybackStateHolderTest {
 
     private val dualPlayerEngine: DualPlayerEngine = mockk(relaxed = true)
     private val userPreferencesRepository: UserPreferencesRepository = mockk(relaxed = true)
-    private val castStateHolder: CastStateHolder = mockk(relaxed = true)
     private val queueStateHolder: QueueStateHolder = mockk(relaxed = true)
     private val appContext: Context = mockk(relaxed = true)
     private val powerManager: PowerManager = mockk(relaxed = true)
@@ -33,7 +32,6 @@ class PlaybackStateHolderTest {
     private fun createHolder() = PlaybackStateHolder(
         dualPlayerEngine = dualPlayerEngine,
         userPreferencesRepository = userPreferencesRepository,
-        castStateHolder = castStateHolder,
         queueStateHolder = queueStateHolder,
         appContext = appContext
     )

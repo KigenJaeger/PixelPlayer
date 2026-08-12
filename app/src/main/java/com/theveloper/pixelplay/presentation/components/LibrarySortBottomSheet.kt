@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.Dp
 import com.theveloper.pixelplay.R
 import com.theveloper.pixelplay.data.model.SortDirection
 import com.theveloper.pixelplay.data.model.SortOption
+import com.theveloper.pixelplay.ui.theme.ReadableOverlayTheme
 import com.theveloper.pixelplay.ui.theme.GoogleSansRounded
 import racra.compose.smooth_corner_rect_library.AbsoluteSmoothCornerShape
 
@@ -94,20 +95,21 @@ fun LibrarySortBottomSheet(
         label = "boxCornerRadiusAnimation"
     )
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        dragHandle = { BottomSheetDefaults.DragHandle() },
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 8.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 0.dp)
-                .selectableGroup(),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+    ReadableOverlayTheme {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            dragHandle = { BottomSheetDefaults.DragHandle() },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 8.dp
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 0.dp)
+                    .selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineMedium,
@@ -266,6 +268,7 @@ fun LibrarySortBottomSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+            }
         }
     }
 }

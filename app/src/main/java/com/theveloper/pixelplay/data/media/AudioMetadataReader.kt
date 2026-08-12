@@ -5,7 +5,6 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.kyant.taglib.TagLib
-import com.theveloper.pixelplay.data.diagnostics.PerformanceMetrics
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import timber.log.Timber
@@ -66,7 +65,6 @@ object AudioMetadataReader {
     }
 
     fun read(file: File, readArtwork: Boolean = true): AudioMetadata? {
-        val startNanos = System.nanoTime()
         return try {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
                 // Get audio properties for duration
@@ -132,7 +130,6 @@ object AudioMetadataReader {
                 // JAudioTagger before giving up so we preserve full metadata when possible.
                 val fallback = if (title == null || artist == null || (readArtwork && artwork == null)) {
                     if (VERBOSE) Log.w(TAG, "TagLib incomplete for ${file.name}, trying JAudioTagger fallback...")
-                    PerformanceMetrics.increment(PerformanceMetrics.Counters.METADATA_FALLBACK_JAUDIOTAGGER)
                     readWithJAudioTagger(file, readArtwork = readArtwork)
                 } else null
 
@@ -158,11 +155,6 @@ object AudioMetadataReader {
         } catch (error: Exception) {
             Timber.tag(TAG).e(error, "Unable to read metadata from file: ${file.absolutePath}")
             null
-        } finally {
-            PerformanceMetrics.recordTiming(
-                PerformanceMetrics.Timings.METADATA_READ,
-                (System.nanoTime() - startNanos) / 1_000_000
-            )
         }
     }
 

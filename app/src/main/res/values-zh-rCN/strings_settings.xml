@@ -22,7 +22,7 @@
     <string name="settings_category_accounts_title">账户</string>
     <string name="settings_category_accounts_subtitle">管理 Telegram、Google Drive、网易云音乐等服务</string>
     <string name="settings_category_about_title">关于</string>
-    <string name="settings_category_about_subtitle">应用信息、版本和鸣谢</string>
+    <string name="settings_category_about_subtitle">应用信息、版本和详情</string>
 
     <!-- Common toggles / labels used in ThemeSelectorItem maps -->
     <string name="settings_label_on">开</string>
@@ -153,13 +153,19 @@
     <string name="settings_sync_phase_saving_db">正在保存到数据库</string>
     <string name="settings_sync_phase_scanning_lrc">正在扫描歌词文件</string>
     <string name="settings_sync_phase_cleaning_cache">正在清理专辑封面缓存</string>
-    <string name="settings_sync_phase_syncing_cloud">正在同步云端源</string>
     <string name="settings_sync_phase_completing">正在完成同步</string>
     <string name="settings_sync_progress_detailed">%1$s • %2$d%% (%3$d/%4$d)</string>
     <string name="settings_sync_progres_indeterminate">%1$s…</string>
 
     <!-- Appearance category -->
     <string name="settings_global_theme_section">全局主题</string>
+    <string name="settings_background_image_title">自定义背景</string>
+    <string name="settings_background_image_subtitle">从相册选择一张图片作为应用背景。</string>
+    <string name="settings_background_image_set">已设置自定义图片</string>
+    <string name="settings_background_image_none">默认纯色背景</string>
+    <string name="settings_background_image_remove">移除自定义背景</string>
+    <string name="settings_background_image_change">更换背景图片</string>
+    <string name="settings_background_enabled_subtitle">开启后所有界面变透明，显示自定义背景图片。关闭后保持默认风格。</string>
     <string name="settings_app_language_title">应用语言</string>
     <string name="settings_app_language_subtitle">选择应用界面的语言。</string>
     <string name="settings_language_system">跟随系统</string>
@@ -213,8 +219,34 @@
     <string name="settings_navbar_corner_title">导航栏圆角半径</string>
     <string name="settings_navbar_corner_subtitle">调整导航栏的圆角半径。</string>
     <string name="settings_lyrics_screen_section">歌词界面</string>
+    <string name="settings_lyrics_display_section">歌词显示</string>
+    <string name="settings_desktop_lyrics_section">桌面悬浮歌词</string>
     <string name="settings_immersive_lyrics_title">沉浸式歌词</string>
     <string name="settings_immersive_lyrics_subtitle">自动隐藏控件并放大文本。</string>
+    <string name="settings_desktop_lyrics_title">桌面悬浮歌词</string>
+    <string name="settings_desktop_lyrics_subtitle">在其他应用上方显示横向歌词条，需要“显示在其他应用上层”权限。</string>
+    <string name="settings_desktop_lyrics_permission_required">请授予“显示在其他应用上层”权限后使用桌面悬浮歌词。</string>
+    <string name="settings_desktop_lyrics_lock_title">锁定悬浮歌词</string>
+    <string name="settings_desktop_lyrics_lock_subtitle">固定当前位置，并让触摸穿透歌词条。</string>
+    <string name="settings_desktop_lyrics_background_title">背景面板</string>
+    <string name="settings_desktop_lyrics_background_subtitle">显示歌词条背后的圆角矩形背景。</string>
+    <string name="settings_desktop_lyrics_size_title">悬浮歌词大小</string>
+    <string name="settings_desktop_lyrics_alignment_title">对齐与贴边</string>
+    <string name="settings_desktop_lyrics_alignment_subtitle">选择歌词左对齐、居中或右对齐。左/右贴边时胶囊对应边为直边。</string>
+    <string name="settings_desktop_lyrics_alignment_left">左侧贴边</string>
+    <string name="settings_desktop_lyrics_alignment_center">居中</string>
+    <string name="settings_desktop_lyrics_alignment_right">右侧贴边</string>
+    <string name="settings_desktop_lyrics_color_source_title">颜色来源</string>
+    <string name="settings_desktop_lyrics_color_source_subtitle">选择来自应用主题莫奈色或当前歌曲封面取色。</string>
+    <string name="settings_desktop_lyrics_color_source_theme">主题莫奈</string>
+    <string name="settings_desktop_lyrics_color_source_album_art">专辑封面莫奈</string>
+    <string name="settings_desktop_lyrics_color_title">悬浮歌词颜色角色</string>
+    <string name="settings_desktop_lyrics_color_subtitle">选择歌词文字使用的莫奈色彩角色。</string>
+    <string name="settings_desktop_lyrics_color_primary">莫奈主色</string>
+    <string name="settings_desktop_lyrics_color_secondary">莫奈次色</string>
+    <string name="settings_desktop_lyrics_color_tertiary">莫奈第三色</string>
+    <string name="settings_desktop_lyrics_color_inverse_primary">莫奈反向主色</string>
+    <string name="settings_desktop_lyrics_color_neutral">莫奈中性色</string>
     <string name="settings_auto_hide_delay_title">自动隐藏延迟</string>
     <string name="settings_auto_hide_delay_subtitle">控件隐藏前的时间。</string>
     <string name="settings_auto_hide_delay_3s">3秒</string>
@@ -263,6 +295,8 @@
     <string name="settings_background_playback_section">后台播放</string>
     <string name="settings_keep_playing_title">关闭后继续播放</string>
     <string name="settings_keep_playing_subtitle">如果关闭此项，从最近任务中移除应用将停止播放。</string>
+    <string name="settings_parallel_play_title">多应用同时播放</string>
+    <string name="settings_parallel_play_subtitle">允许其他应用在 PixelPlayer 播放时继续播放音频。</string>
     <string name="settings_battery_optimization_title">电池优化</string>
     <string name="settings_battery_optimization_subtitle">禁用电池优化以防止播放中断。</string>
     <string name="settings_toast_battery_already_disabled">电池优化已被禁用</string>
@@ -622,6 +656,11 @@
     <string name="about_app_name">PixelPlayer</string>
     <string name="about_tagline">由社区共同打造的开源音乐播放器。</string>
     <string name="about_version_format">版本 v%1$s</string>
+    <string name="about_app_info_body">专注本地媒体库播放、播放列表、桌面小部件和设备传输的音乐播放器。</string>
+    <string name="about_version_label">版本</string>
+    <string name="about_version_code_label">版本号</string>
+    <string name="about_updated_label">更新日期</string>
+    <string name="about_package_label">包名</string>
     <string name="about_signal_open_source">开源</string>
     <string name="about_signal_community_first">社区优先</string>
     <string name="about_signal_material3">Material 3 表现力设计</string>

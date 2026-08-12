@@ -20,10 +20,7 @@ import com.theveloper.pixelplay.PixelPlayApplication
 import com.theveloper.pixelplay.data.database.AlbumArtThemeDao
 import com.theveloper.pixelplay.data.database.EngagementDao
 import com.theveloper.pixelplay.data.database.FavoritesDao
-import com.theveloper.pixelplay.data.database.GDriveDao
 import com.theveloper.pixelplay.data.database.LyricsDao
-import com.theveloper.pixelplay.data.database.AiCacheDao
-import com.theveloper.pixelplay.data.database.AiUsageDao
 import com.theveloper.pixelplay.data.database.LocalPlaylistDao
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.PixelPlayDatabase
@@ -33,8 +30,6 @@ import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.PlaylistPreferencesRepository
 import com.theveloper.pixelplay.data.preferences.dataStore
 import com.theveloper.pixelplay.data.media.SongMetadataEditor
-import com.theveloper.pixelplay.data.network.deezer.DeezerApiService
-import com.theveloper.pixelplay.data.network.netease.NeteaseApiService
 import com.theveloper.pixelplay.data.network.lyrics.LrcLibApiService
 import com.theveloper.pixelplay.data.repository.ArtistImageRepository
 import com.theveloper.pixelplay.data.repository.LyricsRepository
@@ -48,7 +43,6 @@ import com.theveloper.pixelplay.data.repository.TransitionRepositoryImpl
 import com.theveloper.pixelplay.data.repository.FolderTreeBuilder
 import dagger.Module
 import dagger.Provides
-import dagger.Lazy
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
@@ -165,7 +159,10 @@ object AppModule {
             PixelPlayDatabase.MIGRATION_38_39,
             PixelPlayDatabase.MIGRATION_39_40,
             PixelPlayDatabase.MIGRATION_40_41,
-            PixelPlayDatabase.MIGRATION_41_42
+            PixelPlayDatabase.MIGRATION_41_42,
+            PixelPlayDatabase.MIGRATION_42_43,
+            PixelPlayDatabase.MIGRATION_43_44,
+            PixelPlayDatabase.MIGRATION_44_45
         )
             .addCallback(PixelPlayDatabase.createRuntimeArtifactsCallback())
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
@@ -224,43 +221,8 @@ object AppModule {
 
     @Singleton
     @Provides
-    fun provideGDriveDao(database: PixelPlayDatabase): GDriveDao {
-        return database.gdriveDao()
-    }
-
-    @Singleton
-    @Provides
     fun provideLocalPlaylistDao(database: PixelPlayDatabase): LocalPlaylistDao {
         return database.localPlaylistDao()
-    }
-
-    @Singleton
-    @Provides
-    fun provideQqMusicDao(database: PixelPlayDatabase): com.theveloper.pixelplay.data.database.QqMusicDao {
-        return database.qqmusicDao()
-    }
-
-    @Singleton
-    @Provides
-    fun provideNavidromeDao(database: PixelPlayDatabase): com.theveloper.pixelplay.data.database.NavidromeDao {
-        return database.navidromeDao()
-    }
-    
-    @Singleton
-    @Provides
-    fun provideAiCacheDao(database: PixelPlayDatabase): AiCacheDao {
-        return database.aiCacheDao()
-    }
-
-    @Provides
-    fun provideAiUsageDao(database: PixelPlayDatabase): AiUsageDao {
-        return database.aiUsageDao()
-    }
-
-    @Singleton
-    @Provides
-    fun provideJellyfinDao(database: PixelPlayDatabase): com.theveloper.pixelplay.data.database.JellyfinDao {
-        return database.jellyfinDao()
     }
 
     @Provides
@@ -349,18 +311,6 @@ object AppModule {
         )
     }
 
-    @Singleton
-    @Provides
-    fun provideTelegramDao(database: PixelPlayDatabase): com.theveloper.pixelplay.data.database.TelegramDao {
-        return database.telegramDao()
-    }
-
-    @Singleton
-    @Provides
-    fun provideNeteaseDao(database: PixelPlayDatabase): com.theveloper.pixelplay.data.database.NeteaseDao {
-        return database.neteaseDao()
-    }
-
     @Provides
     @Singleton
     fun provideFolderTreeBuilder(): FolderTreeBuilder {
@@ -376,9 +326,6 @@ object AppModule {
         searchHistoryDao: SearchHistoryDao,
         musicDao: MusicDao,
         lyricsRepository: LyricsRepository,
-        telegramDao: com.theveloper.pixelplay.data.database.TelegramDao,
-        telegramCacheManager: Lazy<com.theveloper.pixelplay.data.telegram.TelegramCacheManager>,
-        telegramRepository: Lazy<com.theveloper.pixelplay.data.telegram.TelegramRepository>,
         songRepository: SongRepository,
         favoritesDao: FavoritesDao,
         artistImageRepository: ArtistImageRepository,
@@ -391,9 +338,6 @@ object AppModule {
             searchHistoryDao = searchHistoryDao,
             musicDao = musicDao,
             lyricsRepository = lyricsRepository,
-            telegramDao = telegramDao,
-            telegramCacheManagerProvider = telegramCacheManager,
-            telegramRepositoryProvider = telegramRepository,
             songRepository = songRepository,
             favoritesDao = favoritesDao,
             artistImageRepository = artistImageRepository,
@@ -415,10 +359,9 @@ object AppModule {
     fun provideSongMetadataEditor(
         @ApplicationContext context: Context,
         musicDao: MusicDao,
-        telegramDao: com.theveloper.pixelplay.data.database.TelegramDao,
         userPreferencesRepository: UserPreferencesRepository
     ): SongMetadataEditor {
-        return SongMetadataEditor(context, musicDao, telegramDao, userPreferencesRepository)
+        return SongMetadataEditor(context, musicDao, userPreferencesRepository)
     }
 
     /**
@@ -552,38 +495,11 @@ object AppModule {
         return retrofit.create(LrcLibApiService::class.java)
     }
 
-    /**
-     * Provee una instancia de Retrofit para la API de Deezer.
-     */
-    @Provides
-    @Singleton
-    @DeezerRetrofit
-    fun provideDeezerRetrofit(okHttpClient: OkHttpClient): Retrofit {
-        return Retrofit.Builder()
-            .baseUrl("https://api.deezer.com/")
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-    }
-
-    /**
-     * Provee el servicio de la API de Deezer.
-     */
-    @Provides
-    @Singleton
-    fun provideDeezerApiService(@DeezerRetrofit retrofit: Retrofit): DeezerApiService {
-        return retrofit.create(DeezerApiService::class.java)
-    }
-
-    /**
-     * Provee el repositorio de imágenes de artistas.
-     */
     @Provides
     @Singleton
     fun provideArtistImageRepository(
-        deezerApiService: DeezerApiService,
         musicDao: MusicDao
     ): ArtistImageRepository {
-        return ArtistImageRepository(deezerApiService, musicDao)
+        return ArtistImageRepository(musicDao)
     }
 }

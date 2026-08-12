@@ -75,21 +75,11 @@ class LibraryStateHolder @Inject constructor(
     val currentSongSortOption = _currentSongSortOption.asStateFlow()
 
     // Filter Options
-    private val _currentStorageFilter = MutableStateFlow(com.theveloper.pixelplay.data.model.StorageFilter.ALL)
+    private val _currentStorageFilter = MutableStateFlow(com.theveloper.pixelplay.data.model.StorageFilter.OFFLINE)
     val currentStorageFilter = _currentStorageFilter.asStateFlow()
 
-    /**
-     * Effective storage filter that accounts for the "hide local media" preference.
-     * When hideLocalMedia is true, forces ONLINE filter (excludes source_type = 0).
-     */
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val effectiveStorageFilter: kotlinx.coroutines.flow.Flow<com.theveloper.pixelplay.data.model.StorageFilter> =
-        kotlinx.coroutines.flow.combine(
-            _currentStorageFilter,
-            userPreferencesRepository.hideLocalMediaFlow
-        ) { filter, hideLocal ->
-            if (hideLocal) com.theveloper.pixelplay.data.model.StorageFilter.ONLINE else filter
-        }
+        kotlinx.coroutines.flow.flowOf(com.theveloper.pixelplay.data.model.StorageFilter.OFFLINE)
 
     private fun effectiveFoldersStorageFilter(
         selectedFilter: com.theveloper.pixelplay.data.model.StorageFilter
@@ -218,8 +208,7 @@ class LibraryStateHolder @Inject constructor(
             val likedSortKey = userPreferencesRepository.likedSongsSortOptionFlow.first()
             _currentFavoriteSortOption.value = SortOption.LIKED.find { it.storageKey == likedSortKey } ?: SortOption.LikedSongDateLiked
 
-            // Restore last storage filter (All / Cloud / Local)
-            _currentStorageFilter.value = userPreferencesRepository.lastStorageFilterFlow.first()
+            _currentStorageFilter.value = com.theveloper.pixelplay.data.model.StorageFilter.OFFLINE
         }
     }
 
@@ -555,13 +544,6 @@ class LibraryStateHolder @Inject constructor(
     fun removeSong(songId: String) {
         _allSongs.update { currentList ->
             currentList.filter { it.id != songId }.toImmutableList()
-        }
-    }
-
-    fun setStorageFilter(filter: com.theveloper.pixelplay.data.model.StorageFilter) {
-        _currentStorageFilter.value = filter
-        scope?.launch {
-            userPreferencesRepository.saveLastStorageFilter(filter)
         }
     }
 

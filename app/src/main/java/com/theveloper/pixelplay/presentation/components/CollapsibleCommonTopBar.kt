@@ -59,9 +59,7 @@ fun CollapsibleCommonTopBar(
     supportingContent: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    // Logic from GenreDetailScreen:
     // solidAlpha goes from 0 to 1 as collapseFraction goes from 0 to 0.5 (approx).
-    // Actually GenreDetailScreen uses: (collapseFraction * 2f).coerceIn(0f, 1f)
     val solidAlpha = (collapseFraction * 2f).coerceIn(0f, 1f)
     
     val backgroundColor = containerColor ?: MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = solidAlpha)
@@ -71,7 +69,7 @@ fun CollapsibleCommonTopBar(
         PixelPlayStatusBarStyle(color = statusBarFallbackColor)
     }
     // We can also fade the content color if we want, but usually onSurface is fine.
-    // GenreDetail interpolates content color, but for standard screens onSurface is usually correct for both states 
+    // Standard screens can keep onSurface for both transparent and solid states.
     // (transparent surface vs surfaceContainer).
     
     Box(

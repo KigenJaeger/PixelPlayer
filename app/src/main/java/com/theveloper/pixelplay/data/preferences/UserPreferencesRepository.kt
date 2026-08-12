@@ -14,13 +14,11 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.media3.common.Player
 import com.theveloper.pixelplay.data.equalizer.EqualizerPreset
-import com.theveloper.pixelplay.data.diagnostics.AdvancedPerformanceDiagnostics
 import com.theveloper.pixelplay.data.model.FolderSource
 import com.theveloper.pixelplay.data.model.LyricsSourcePreference
 import com.theveloper.pixelplay.data.model.PlaybackQueueSnapshot
 import com.theveloper.pixelplay.data.model.Playlist
 import com.theveloper.pixelplay.data.model.SortOption
-import com.theveloper.pixelplay.data.model.StorageFilter
 import com.theveloper.pixelplay.data.model.TransitionSettings
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,6 +45,44 @@ object AppThemeMode {
     const val DARK = "dark"
 }
 
+object DesktopLyricsMonetColor {
+    const val PRIMARY = "primary"
+    const val SECONDARY = "secondary"
+    const val TERTIARY = "tertiary"
+    const val INVERSE_PRIMARY = "inverse_primary"
+    const val NEUTRAL = "neutral"
+
+    val values = setOf(PRIMARY, SECONDARY, TERTIARY, INVERSE_PRIMARY, NEUTRAL)
+
+    fun sanitize(value: String?): String =
+        value?.takeIf { it in values } ?: PRIMARY
+}
+
+object DesktopLyricsColorSource {
+    const val THEME = "theme"
+    const val ALBUM_ART = "album_art"
+
+    val values = setOf(THEME, ALBUM_ART)
+
+    fun sanitize(value: String?): String =
+        value?.takeIf { it in values } ?: ALBUM_ART
+}
+
+object DesktopLyricsAlignment {
+    const val START = "start"
+    const val CENTER = "center"
+    const val END = "end"
+
+    val values = setOf(START, CENTER, END)
+
+    fun sanitize(value: String?): String =
+        value?.takeIf { it in values } ?: CENTER
+}
+
+const val MIN_DESKTOP_LYRICS_TEXT_SCALE = 0.7f
+const val MAX_DESKTOP_LYRICS_TEXT_SCALE = 1.8f
+const val DEFAULT_DESKTOP_LYRICS_TEXT_SCALE = 1.0f
+
 const val MIN_NAV_BAR_CORNER_RADIUS = 0
 const val MAX_NAV_BAR_CORNER_RADIUS = 60
 
@@ -68,15 +104,6 @@ enum class AlbumArtQuality(val maxSize: Int, val label: String) {
     ORIGINAL(0, "Original - Maximum quality")
 }
 
-data class AdvancedPerformanceDiagnosticsSettings(
-    val enabled: Boolean,
-    val sessionStartedEpochMs: Long?,
-    val expiresAtEpochMs: Long?
-) {
-    fun isActive(nowEpochMs: Long = System.currentTimeMillis()): Boolean =
-        enabled && expiresAtEpochMs?.let { nowEpochMs < it } == true
-}
-
 @Singleton
 class UserPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>,
@@ -90,9 +117,6 @@ class UserPreferencesRepository @Inject constructor(
     // ─── Preference keys ────────────────────────────────────────────────────
 
     private object PreferencesKeys {
-        val APP_REBRAND_DIALOG_SHOWN = booleanPreferencesKey("app_rebrand_dialog_shown")
-        val BETA_05_CLEAN_INSTALL_DISCLAIMER_DISMISSED =
-            booleanPreferencesKey("beta_05_clean_install_disclaimer_dismissed")
         val ALLOWED_DIRECTORIES = stringSetPreferencesKey("allowed_directories")
         val BLOCKED_DIRECTORIES = stringSetPreferencesKey("blocked_directories")
         val INITIAL_SETUP_DONE = booleanPreferencesKey("initial_setup_done")
@@ -114,7 +138,6 @@ class UserPreferencesRepository @Inject constructor(
 
         // UI state
         val LAST_LIBRARY_TAB_INDEX = intPreferencesKey("last_library_tab_index")
-        val LAST_STORAGE_FILTER = stringPreferencesKey("last_storage_filter")
         val MOCK_GENRES_ENABLED = booleanPreferencesKey("mock_genres_enabled")
         val LAST_DAILY_MIX_UPDATE = longPreferencesKey("last_daily_mix_update")
         val DAILY_MIX_SONG_IDS = stringPreferencesKey("daily_mix_song_ids")
@@ -131,13 +154,12 @@ class UserPreferencesRepository @Inject constructor(
         val LIBRARY_TABS_ORDER = stringPreferencesKey("library_tabs_order")
         val IS_FOLDER_FILTER_ACTIVE = booleanPreferencesKey("is_folder_filter_active")
         val IS_FOLDERS_PLAYLIST_VIEW = booleanPreferencesKey("is_folders_playlist_view")
-        val SHOW_TELEGRAM_CLOUD_PLAYLISTS = booleanPreferencesKey("show_telegram_cloud_playlists")
         val HIDE_LOCAL_MEDIA = booleanPreferencesKey("hide_local_media")
-        val TELEGRAM_TOPIC_DISPLAY_MODE = stringPreferencesKey("telegram_topic_display_mode")
         val FOLDERS_SOURCE = stringPreferencesKey("folders_source")
         val FOLDER_BACK_GESTURE_NAVIGATION = booleanPreferencesKey("folder_back_gesture_navigation")
         val USE_SMOOTH_CORNERS = booleanPreferencesKey("use_smooth_corners")
         val KEEP_PLAYING_IN_BACKGROUND = booleanPreferencesKey("keep_playing_in_background")
+        val PARALLEL_PLAY_ENABLED = booleanPreferencesKey("parallel_play_enabled")
         val IS_CROSSFADE_ENABLED = booleanPreferencesKey("is_crossfade_enabled")
         val HI_FI_MODE_ENABLED = booleanPreferencesKey("hi_fi_mode_enabled")
         val CROSSFADE_DURATION = intPreferencesKey("crossfade_duration")
@@ -146,7 +168,6 @@ class UserPreferencesRepository @Inject constructor(
         val REPEAT_MODE = intPreferencesKey("repeat_mode")
         val IS_SHUFFLE_ON = booleanPreferencesKey("is_shuffle_on")
         val PERSISTENT_SHUFFLE_ENABLED = booleanPreferencesKey("persistent_shuffle_enabled")
-        val DISABLE_CAST_AUTOPLAY = booleanPreferencesKey("disable_cast_autoplay")
         val RESUME_ON_HEADSET_RECONNECT = booleanPreferencesKey("resume_on_headset_reconnect")
         val SHOW_QUEUE_HISTORY = booleanPreferencesKey("show_queue_history")
         val PLAYBACK_QUEUE_SNAPSHOT = stringPreferencesKey("playback_queue_snapshot_v1")
@@ -213,14 +234,18 @@ class UserPreferencesRepository @Inject constructor(
         val ALBUM_ART_CACHE_LIMIT_MB = intPreferencesKey("album_art_cache_limit_mb")
         val TAP_BACKGROUND_CLOSES_PLAYER = booleanPreferencesKey("tap_background_closes_player")
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
-        val ADVANCED_PERFORMANCE_DIAGNOSTICS_ENABLED =
-            booleanPreferencesKey("advanced_performance_diagnostics_enabled")
-        val ADVANCED_PERFORMANCE_DIAGNOSTICS_STARTED_AT =
-            longPreferencesKey("advanced_performance_diagnostics_started_at_epoch_ms")
-        val ADVANCED_PERFORMANCE_DIAGNOSTICS_EXPIRES_AT =
-            longPreferencesKey("advanced_performance_diagnostics_expires_at_epoch_ms")
         val IMMERSIVE_LYRICS_ENABLED = booleanPreferencesKey("immersive_lyrics_enabled")
         val IMMERSIVE_LYRICS_TIMEOUT = longPreferencesKey("immersive_lyrics_timeout")
+        val DESKTOP_LYRICS_OVERLAY_ENABLED = booleanPreferencesKey("desktop_lyrics_overlay_enabled")
+        val DESKTOP_LYRICS_OVERLAY_LOCKED = booleanPreferencesKey("desktop_lyrics_overlay_locked")
+        val DESKTOP_LYRICS_OVERLAY_BACKGROUND_ENABLED =
+            booleanPreferencesKey("desktop_lyrics_overlay_background_enabled")
+        val DESKTOP_LYRICS_TEXT_SCALE = floatPreferencesKey("desktop_lyrics_text_scale")
+        val DESKTOP_LYRICS_COLOR_SOURCE = stringPreferencesKey("desktop_lyrics_color_source")
+        val DESKTOP_LYRICS_MONET_COLOR = stringPreferencesKey("desktop_lyrics_monet_color")
+        val DESKTOP_LYRICS_ALIGNMENT = stringPreferencesKey("desktop_lyrics_alignment")
+        val DESKTOP_LYRICS_OVERLAY_X = intPreferencesKey("desktop_lyrics_overlay_x")
+        val DESKTOP_LYRICS_OVERLAY_Y = intPreferencesKey("desktop_lyrics_overlay_y")
         val USE_ANIMATED_LYRICS = booleanPreferencesKey("use_animated_lyrics")
         val ANIMATED_LYRICS_BLUR_ENABLED = booleanPreferencesKey("animated_lyrics_blur_enabled")
         val ANIMATED_LYRICS_BLUR_STRENGTH = androidx.datastore.preferences.core.floatPreferencesKey("animated_lyrics_blur_strength")
@@ -276,20 +301,6 @@ class UserPreferencesRepository @Inject constructor(
     }
 
     // ─── Onboarding / dialogs ─────────────────────────────────────────────────
-
-    val appRebrandDialogShownFlow: Flow<Boolean> =
-        pref { it[PreferencesKeys.APP_REBRAND_DIALOG_SHOWN] ?: false }
-
-    suspend fun setAppRebrandDialogShown(wasShown: Boolean) {
-        dataStore.edit { it[PreferencesKeys.APP_REBRAND_DIALOG_SHOWN] = wasShown }
-    }
-
-    val beta05CleanInstallDisclaimerDismissedFlow: Flow<Boolean> =
-        pref { it[PreferencesKeys.BETA_05_CLEAN_INSTALL_DISCLAIMER_DISMISSED] ?: false }
-
-    suspend fun setBeta05CleanInstallDisclaimerDismissed(dismissed: Boolean) {
-        dataStore.edit { it[PreferencesKeys.BETA_05_CLEAN_INSTALL_DISCLAIMER_DISMISSED] = dismissed }
-    }
 
     val backupInfoDismissedFlow: Flow<Boolean> =
         pref { it[PreferencesKeys.BACKUP_INFO_DISMISSED] ?: false }
@@ -356,11 +367,11 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[PreferencesKeys.KEEP_PLAYING_IN_BACKGROUND] = enabled }
     }
 
-    val disableCastAutoplayFlow: Flow<Boolean> =
-        pref { it[PreferencesKeys.DISABLE_CAST_AUTOPLAY] ?: false }
+    val parallelPlayEnabledFlow: Flow<Boolean> =
+        pref { it[PreferencesKeys.PARALLEL_PLAY_ENABLED] ?: false }
 
-    suspend fun setDisableCastAutoplay(disabled: Boolean) {
-        dataStore.edit { it[PreferencesKeys.DISABLE_CAST_AUTOPLAY] = disabled }
+    suspend fun setParallelPlayEnabled(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.PARALLEL_PLAY_ENABLED] = enabled }
     }
 
     val resumeOnHeadsetReconnectFlow: Flow<Boolean> =
@@ -860,19 +871,6 @@ suspend fun markDirectoryRulesVersionApplied(version: Int) {
         dataStore.edit { it[PreferencesKeys.LAST_LIBRARY_TAB_INDEX] = tabIndex }
     }
 
-    val lastStorageFilterFlow: Flow<StorageFilter> =
-        pref { preferences ->
-            when (preferences[PreferencesKeys.LAST_STORAGE_FILTER]) {
-                "ONLINE"  -> StorageFilter.ONLINE
-                "OFFLINE" -> StorageFilter.OFFLINE
-                else      -> StorageFilter.ALL
-            }
-        }
-
-    suspend fun saveLastStorageFilter(filter: StorageFilter) {
-        dataStore.edit { it[PreferencesKeys.LAST_STORAGE_FILTER] = filter.name }
-    }
-
     val mockGenresEnabledFlow: Flow<Boolean> =
         pref { it[PreferencesKeys.MOCK_GENRES_ENABLED] ?: false }
 
@@ -920,25 +918,11 @@ suspend fun markDirectoryRulesVersionApplied(version: Int) {
         dataStore.edit { it[PreferencesKeys.IS_FOLDERS_PLAYLIST_VIEW] = isPlaylistView }
     }
 
-    val showTelegramCloudPlaylistsFlow: Flow<Boolean> =
-        pref { it[PreferencesKeys.SHOW_TELEGRAM_CLOUD_PLAYLISTS] ?: true }
-
-    suspend fun setShowTelegramCloudPlaylists(show: Boolean) {
-        dataStore.edit { it[PreferencesKeys.SHOW_TELEGRAM_CLOUD_PLAYLISTS] = show }
-    }
-
     val hideLocalMediaFlow: Flow<Boolean> =
         pref { it[PreferencesKeys.HIDE_LOCAL_MEDIA] ?: false }.distinctUntilChanged()
 
     suspend fun setHideLocalMedia(hide: Boolean) {
         dataStore.edit { it[PreferencesKeys.HIDE_LOCAL_MEDIA] = hide }
-    }
-
-    val telegramTopicDisplayModeFlow: Flow<TelegramTopicDisplayMode> =
-        pref { TelegramTopicDisplayMode.fromStorageKey(it[PreferencesKeys.TELEGRAM_TOPIC_DISPLAY_MODE]) }
-
-    suspend fun setTelegramTopicDisplayMode(mode: TelegramTopicDisplayMode) {
-        dataStore.edit { it[PreferencesKeys.TELEGRAM_TOPIC_DISPLAY_MODE] = mode.storageKey }
     }
 
     val foldersSourceFlow: Flow<FolderSource> =
@@ -993,7 +977,7 @@ suspend fun markDirectoryRulesVersionApplied(version: Int) {
     }
 
     val launchTabFlow: Flow<String> =
-        pref { it[PreferencesKeys.LAUNCH_TAB] ?: LaunchTab.HOME }
+        pref { it[PreferencesKeys.LAUNCH_TAB] ?: LaunchTab.LIBRARY }
 
     suspend fun setLaunchTab(tab: String) {
         dataStore.edit { it[PreferencesKeys.LAUNCH_TAB] = tab }
@@ -1111,6 +1095,83 @@ suspend fun markDirectoryRulesVersionApplied(version: Int) {
 
     suspend fun setImmersiveLyricsTimeout(timeout: Long) {
         dataStore.edit { it[PreferencesKeys.IMMERSIVE_LYRICS_TIMEOUT] = timeout }
+    }
+
+    val desktopLyricsOverlayEnabledFlow: Flow<Boolean> =
+        pref { it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_ENABLED] ?: false }
+
+    suspend fun setDesktopLyricsOverlayEnabled(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_ENABLED] = enabled }
+    }
+
+    val desktopLyricsOverlayLockedFlow: Flow<Boolean> =
+        pref { it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_LOCKED] ?: false }
+
+    suspend fun setDesktopLyricsOverlayLocked(locked: Boolean) {
+        dataStore.edit { it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_LOCKED] = locked }
+    }
+
+    val desktopLyricsOverlayBackgroundEnabledFlow: Flow<Boolean> =
+        pref { it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_BACKGROUND_ENABLED] ?: true }
+
+    suspend fun setDesktopLyricsOverlayBackgroundEnabled(enabled: Boolean) {
+        dataStore.edit { it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_BACKGROUND_ENABLED] = enabled }
+    }
+
+    val desktopLyricsTextScaleFlow: Flow<Float> =
+        pref { preferences ->
+            (preferences[PreferencesKeys.DESKTOP_LYRICS_TEXT_SCALE] ?: DEFAULT_DESKTOP_LYRICS_TEXT_SCALE)
+                .coerceIn(MIN_DESKTOP_LYRICS_TEXT_SCALE, MAX_DESKTOP_LYRICS_TEXT_SCALE)
+        }
+
+    suspend fun setDesktopLyricsTextScale(scale: Float) {
+        dataStore.edit {
+            it[PreferencesKeys.DESKTOP_LYRICS_TEXT_SCALE] =
+                scale.coerceIn(MIN_DESKTOP_LYRICS_TEXT_SCALE, MAX_DESKTOP_LYRICS_TEXT_SCALE)
+        }
+    }
+
+    val desktopLyricsColorSourceFlow: Flow<String> =
+        pref { DesktopLyricsColorSource.sanitize(it[PreferencesKeys.DESKTOP_LYRICS_COLOR_SOURCE]) }
+
+    suspend fun setDesktopLyricsColorSource(source: String) {
+        dataStore.edit {
+            it[PreferencesKeys.DESKTOP_LYRICS_COLOR_SOURCE] =
+                DesktopLyricsColorSource.sanitize(source)
+        }
+    }
+
+    val desktopLyricsMonetColorFlow: Flow<String> =
+        pref { DesktopLyricsMonetColor.sanitize(it[PreferencesKeys.DESKTOP_LYRICS_MONET_COLOR]) }
+
+    suspend fun setDesktopLyricsMonetColor(color: String) {
+        dataStore.edit {
+            it[PreferencesKeys.DESKTOP_LYRICS_MONET_COLOR] =
+                DesktopLyricsMonetColor.sanitize(color)
+        }
+    }
+
+    val desktopLyricsAlignmentFlow: Flow<String> =
+        pref { DesktopLyricsAlignment.sanitize(it[PreferencesKeys.DESKTOP_LYRICS_ALIGNMENT]) }
+
+    suspend fun setDesktopLyricsAlignment(alignment: String) {
+        dataStore.edit {
+            it[PreferencesKeys.DESKTOP_LYRICS_ALIGNMENT] =
+                DesktopLyricsAlignment.sanitize(alignment)
+        }
+    }
+
+    val desktopLyricsOverlayPositionFlow: Flow<Pair<Int, Int>> =
+        pref {
+            (it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_X] ?: -1) to
+                (it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_Y] ?: -1)
+        }
+
+    suspend fun setDesktopLyricsOverlayPosition(x: Int, y: Int) {
+        dataStore.edit {
+            it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_X] = x
+            it[PreferencesKeys.DESKTOP_LYRICS_OVERLAY_Y] = y
+        }
     }
 
     val useAnimatedLyricsFlow: Flow<Boolean> =
@@ -1245,45 +1306,6 @@ suspend fun markDirectoryRulesVersionApplied(version: Int) {
     }
 
     // ─── Backup / restore ─────────────────────────────────────────────────────
-
-    val advancedPerformanceDiagnosticsSettingsFlow: Flow<AdvancedPerformanceDiagnosticsSettings> =
-        pref { preferences ->
-            AdvancedPerformanceDiagnosticsSettings(
-                enabled = preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_ENABLED] ?: false,
-                sessionStartedEpochMs =
-                    preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_STARTED_AT],
-                expiresAtEpochMs =
-                    preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_EXPIRES_AT]
-            )
-        }.distinctUntilChanged()
-
-    suspend fun setAdvancedPerformanceDiagnosticsEnabled(enabled: Boolean) {
-        dataStore.edit { preferences ->
-            if (enabled) {
-                val now = System.currentTimeMillis()
-                preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_ENABLED] = true
-                preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_STARTED_AT] = now
-                preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_EXPIRES_AT] =
-                    now + AdvancedPerformanceDiagnostics.DEFAULT_SESSION_DURATION_MS
-            } else {
-                preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_ENABLED] = false
-                preferences.remove(PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_STARTED_AT)
-                preferences.remove(PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_EXPIRES_AT)
-            }
-        }
-    }
-
-    suspend fun disableExpiredAdvancedPerformanceDiagnostics(nowEpochMs: Long = System.currentTimeMillis()) {
-        dataStore.edit { preferences ->
-            val enabled = preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_ENABLED] ?: false
-            val expiresAt = preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_EXPIRES_AT]
-            if (enabled && (expiresAt == null || nowEpochMs >= expiresAt)) {
-                preferences[PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_ENABLED] = false
-                preferences.remove(PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_STARTED_AT)
-                preferences.remove(PreferencesKeys.ADVANCED_PERFORMANCE_DIAGNOSTICS_EXPIRES_AT)
-            }
-        }
-    }
 
     suspend fun clearPreferencesByKeys(keyNames: Set<String>) {
         if (keyNames.isEmpty()) return

@@ -9,9 +9,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
-import com.google.android.gms.cast.framework.media.RemoteMediaClient
 import com.theveloper.pixelplay.R
-import com.theveloper.pixelplay.data.service.cast.CastRemotePlaybackState
 import com.theveloper.pixelplay.data.model.Song
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
 import com.theveloper.pixelplay.data.repository.MusicRepository
@@ -36,7 +34,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import timber.log.Timber
 
-private const val CAST_LOG_TAG = "PlayerCastTransfer"
 private const val SONG_ID_QUERY_CHUNK_SIZE = 900
 private val LOCAL_PLAYBACK_SCHEMES = setOf("content", "file", "android.resource")
 
@@ -45,8 +42,7 @@ private val LOCAL_PLAYBACK_SCHEMES = setOf("content", "file", "android.resource"
  * ViewModel-owned state (the media controller, the UI state, the player sheet,
  * toasts/dialog events, the crossfade transition job, listening stats, and
  * predictive back) without [PlaybackDispatchStateHolder] depending on the
- * ViewModel. Stored once via [PlaybackDispatchStateHolder.initialize], mirroring
- * the pattern used by SleepTimerStateHolder/AiStateHolder/CastTransferStateHolder.
+ * ViewModel. Stored once via [PlaybackDispatchStateHolder.initialize].
  */
 class PlaybackDispatchCallbacks(
     val scope: CoroutineScope,
@@ -59,7 +55,6 @@ class PlaybackDispatchCallbacks(
     val sendToast: (String) -> Unit,
     val emitToast: suspend (String) -> Unit,
     val showNoInternetDialog: () -> Unit,
-    val ensureTelegramObservers: () -> Unit,
     val cancelTransitionScheduler: () -> Unit,
     val incrementSongScore: (Song) -> Unit,
     val resetPredictiveBackState: () -> Unit,
@@ -73,7 +68,7 @@ private data class PreparedPlaybackQueueSegments(
 
 /**
  * Owns the deep playback dispatch core extracted from [PlayerViewModel]: turning a
- * song selection into a controller/cast queue and starting playback. Covers the
+ * song selection into a controller queue and starting playback. Covers the
  * full-queue (library/favorites) and direct request token machinery, queue-context
  * reuse, hydration, queue-segment batching, external-URI playback, the shuffle-all
  * tile entry point, and the "preparing playback" pill state.
@@ -90,8 +85,6 @@ class PlaybackDispatchStateHolder @Inject constructor(
     private val playbackStateHolder: PlaybackStateHolder,
     private val queueStateHolder: QueueStateHolder,
     private val libraryStateHolder: LibraryStateHolder,
-    private val castStateHolder: CastStateHolder,
-    private val castTransferStateHolder: CastTransferStateHolder,
     private val connectivityStateHolder: ConnectivityStateHolder,
     private val themeStateHolder: ThemeStateHolder,
     @param:ApplicationContext private val context: Context,
@@ -325,75 +318,6 @@ class PlaybackDispatchStateHolder @Inject constructor(
         }
         val playbackContext =
             if (contextSongs.any { it.id == song.id }) contextSongs else listOf(song)
-        val castSession = castStateHolder.castSession.value
-        if (castSession != null && castSession.remoteMediaClient != null) {
-            val remoteMediaClient = castSession.remoteMediaClient!!
-            val mediaStatus = remoteMediaClient.mediaStatus
-            val desiredQueue = playbackContext
-            val lastRemoteQueue = castTransferStateHolder.lastRemoteQueue
-            val contextMatchesRemoteSnapshot = lastRemoteQueue.matchesSongOrder(desiredQueue)
-            val targetIndexInDesiredQueue = desiredQueue.indexOfFirst { it.id == song.id }
-
-            val currentRemoteId = mediaStatus
-                ?.let { status ->
-                    status.getQueueItemById(status.getCurrentItemId())
-                        ?.customData?.optString("songId")
-                        ?.takeIf { it.isNotBlank() }
-                } ?: castTransferStateHolder.lastRemoteSongId
-
-            val itemIdFromStatus = mediaStatus
-                ?.queueItems
-                ?.firstOrNull { it.customData?.optString("songId") == song.id }
-                ?.itemId
-
-            val targetItemId = itemIdFromStatus?.takeIf { it > 0 }
-            val canJumpInCurrentRemoteQueue = contextMatchesRemoteSnapshot && targetIndexInDesiredQueue >= 0 && targetItemId != null
-
-            when {
-                canJumpInCurrentRemoteQueue -> {
-                    // Same queue context: jump directly for immediate, deterministic song changes.
-                    remoteQueueLoadJob?.cancel()
-                    castTransferStateHolder.markPendingRemoteSong(song)
-                    val itemId = requireNotNull(targetItemId)
-                    castStateHolder.castPlayer?.jumpToItem(itemId, 0L)
-                }
-                contextMatchesRemoteSnapshot && currentRemoteId == song.id -> {
-                    // Already on target.
-                    remoteQueueLoadJob?.cancel()
-                    castTransferStateHolder.markPendingRemoteSong(song)
-                }
-                else -> {
-                    // Queue context changed: perform a single remote queue load.
-                    remoteQueueLoadJob?.cancel()
-                    remoteQueueLoadJob = cb.scope.launch {
-                        val hydratedQueue = hydrateSongsIfNeeded(desiredQueue)
-                        if (hydratedQueue.isEmpty()) return@launch
-                        val hydratedStartSong =
-                            hydratedQueue.firstOrNull { it.id == song.id } ?: hydratedQueue.first()
-                        val loaded = castTransferStateHolder.playRemoteQueue(
-                            songsToPlay = hydratedQueue,
-                            startSong = hydratedStartSong,
-                            isShuffleEnabled = playbackStateHolder.stablePlayerState.value.isShuffleEnabled
-                        )
-                        if (!loaded) {
-                            Timber.tag(CAST_LOG_TAG).w(
-                                "Failed to load requested remote queue (songId=%s size=%d).",
-                                song.id,
-                                desiredQueue.size
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (isVoluntaryPlay) {
-                cb.incrementSongScore(song)
-                if (playlistId != null && queueName != "None") {
-                    appShortcutManager.updateLastPlaylistShortcut(playlistId, queueName)
-                }
-            }
-            return
-        }    // Local playback logic
         val controller = cb.getController()
         val currentQueue = cb.getUiState().currentPlaybackQueue
         val songIndexInQueue = indexInQueue ?: currentQueue.indexOfFirst { it.id == song.id }
@@ -432,15 +356,7 @@ class PlaybackDispatchStateHolder @Inject constructor(
 
     fun showAndPlaySong(song: Song) {
         Timber.tag("ShuffleDebug").d("showAndPlaySong (single song overload) called for '${song.title}'")
-        val castSession = castStateHolder.castSession.value
-        val contextSongs = if (castSession != null && castSession.remoteMediaClient != null) {
-            libraryStateHolder.allSongs.value.takeIf { songs ->
-                songs.isNotEmpty() && songs.any { it.id == song.id }
-            } ?: listOf(song)
-        } else {
-            listOf(song)
-        }
-        showAndPlaySong(song, contextSongs, "Library")
+        showAndPlaySong(song, listOf(song), "Library")
     }
 
     private fun List<Song>.matchesSongOrder(contextSongs: List<Song>): Boolean {
@@ -512,28 +428,6 @@ class PlaybackDispatchStateHolder @Inject constructor(
             // Adjust startSong if it was filtered out
             val validStartSong =
                 validSongs.firstOrNull { it.id == startSong.id } ?: validSongs.first()
-
-            // Offline check for the starting song if it is a Telegram song
-            if (validStartSong.contentUriString.startsWith("telegram:")) {
-                cb.ensureTelegramObservers()
-                val isOnline = connectivityStateHolder.isOnline.value
-                val fileId = validStartSong.telegramFileId
-
-                Timber.d("Offline Check: fileId=$fileId, contentUri=${validStartSong.contentUriString}, isOnline=$isOnline")
-
-                if (!isOnline) {
-                     if (fileId != null) {
-                         val isCached = musicRepository.telegramRepository.isFileCached(fileId)
-                         Timber.d("Offline Check: isCached=$isCached")
-                         throwIfDirectPlaybackRequestIsStale(requestToken)
-                         if (!isCached) {
-                             Timber.w("Blocked playback: Offline and not cached.")
-                             cb.showNoInternetDialog()
-                             return@launch
-                         }
-                     }
-                }
-            }
 
             // Store the original order so we can "unshuffle" later if the user turns shuffle off
             queueStateHolder.setOriginalQueueOrder(validSongs)
@@ -816,55 +710,25 @@ class PlaybackDispatchStateHolder @Inject constructor(
             appShortcutManager.updateLastPlaylistShortcut(playlistId, queueName)
         }
 
-        val castSession = castStateHolder.castSession.value
-        if (castSession != null && castSession.remoteMediaClient != null) {
-            clearPreparingSongIfMatching()
-            val remoteLoaded = castTransferStateHolder.playRemoteQueue(
-                songsToPlay = songsToPlay,
-                startSong = effectiveStartSong,
-                isShuffleEnabled = playbackStateHolder.stablePlayerState.value.isShuffleEnabled
+        beginPreparingSong(effectiveStartSong)
+        cb.updateUiState {
+            it.copy(
+                currentPlaybackQueue = songsToPlay.toPlaybackQueue(),
+                currentQueueSourceName = queueName
             )
+        }
+        playbackStateHolder.updateStablePlayerState {
+            it.copy(
+                currentSong = effectiveStartSong,
+                currentMediaItemIndex = 0,
+                isPlaying = true,
+                playWhenReady = true,
+                totalDuration = effectiveStartSong.duration.coerceAtLeast(0L)
+            )
+        }
+        cb.showSheet()
 
-            if (!remoteLoaded) {
-                Timber.tag(CAST_LOG_TAG).w(
-                    "Remote queue load failed in internalPlaySongs (songId=%s queueSize=%d).",
-                    effectiveStartSong.id,
-                    songsToPlay.size
-                )
-                castSession.remoteMediaClient?.requestStatus()
-                return
-            }
-
-            cb.updateUiState { it.copy(currentPlaybackQueue = songsToPlay.toPlaybackQueue(), currentQueueSourceName = queueName) }
-            playbackStateHolder.updateStablePlayerState {
-                it.copy(
-                    currentSong = effectiveStartSong,
-                    currentMediaItemIndex = 0,
-                    isPlaying = true,
-                    playWhenReady = true,
-                    totalDuration = effectiveStartSong.duration.coerceAtLeast(0L)
-                )
-            }
-        } else {
-            beginPreparingSong(effectiveStartSong)
-            cb.updateUiState {
-                it.copy(
-                    currentPlaybackQueue = songsToPlay.toPlaybackQueue(),
-                    currentQueueSourceName = queueName
-                )
-            }
-            playbackStateHolder.updateStablePlayerState {
-                it.copy(
-                    currentSong = effectiveStartSong,
-                    currentMediaItemIndex = 0,
-                    isPlaying = true,
-                    playWhenReady = true,
-                    totalDuration = effectiveStartSong.duration.coerceAtLeast(0L)
-                )
-            }
-            cb.showSheet()
-
-            val startMediaItem = buildResolvedPlaybackMediaItem(effectiveStartSong)
+        val startMediaItem = buildResolvedPlaybackMediaItem(effectiveStartSong)
 
             val playSongsAction = {
                 // Use Direct Engine Access to avoid TransactionTooLargeException on Binder
@@ -903,34 +767,10 @@ class PlaybackDispatchStateHolder @Inject constructor(
             } else {
                 playSongsAction()
             }
-        }
     }
 
     suspend fun buildResolvedPlaybackMediaItem(song: Song): MediaItem {
-        val mediaItem = MediaItemBuilder.build(song)
-        val originalUri = mediaItem.localConfiguration?.uri ?: return mediaItem
-        val scheme = originalUri.scheme
-        if (
-            scheme != "telegram" &&
-            scheme != "netease" &&
-            scheme != "qqmusic" &&
-            scheme != "navidrome" &&
-            scheme != "jellyfin" &&
-            scheme != "gdrive"
-        ) {
-            return mediaItem
-        }
-
-        if (scheme == "telegram") {
-            cb.ensureTelegramObservers()
-        }
-
-        val resolvedUri = dualPlayerEngine.resolveCloudUri(originalUri)
-        return if (resolvedUri == originalUri) {
-            mediaItem
-        } else {
-            mediaItem.buildUpon().setUri(resolvedUri).build()
-        }
+        return MediaItemBuilder.build(song)
     }
 
     fun loadAndPlaySong(song: Song) {
@@ -1008,158 +848,50 @@ class PlaybackDispatchStateHolder @Inject constructor(
     }
 
     fun playPause() {
-        val castSession = castStateHolder.castSession.value
-        if (castSession != null && castSession.remoteMediaClient != null) {
-            val remoteMediaClient = castSession.remoteMediaClient!!
-            val remotePlayback = remoteMediaClient.mediaStatus?.let { mediaStatus ->
-                CastRemotePlaybackState.project(
-                    mediaStatus = mediaStatus,
-                    previousPlayIntent = playbackStateHolder.stablePlayerState.value.playWhenReady
-                )
-            }
-            if (remoteMediaClient.isPlaying || remotePlayback?.playWhenReady == true) {
-                castStateHolder.castPlayer?.pause()
-                playbackStateHolder.updateStablePlayerState {
-                    it.copy(
-                        isPlaying = false,
-                        playWhenReady = false,
-                        isBuffering = false
-                    )
-                }
-            } else {
-                val localQueue = cb.getUiState().currentPlaybackQueue.toList()
-                val startSong = playbackStateHolder.stablePlayerState.value.currentSong ?: localQueue.firstOrNull()
-                val remoteHasQueue = hasRemoteQueueItems(remoteMediaClient)
-                val remoteQueueAligned = remoteQueueMatchesLocalQueue(remoteMediaClient, localQueue, startSong)
-                val shouldResumeRemoteQueue = remoteHasQueue && (localQueue.isEmpty() || remoteQueueAligned)
+        val controller = cb.getController()
+        if (controller == null || !controller.isConnected) {
+            playbackStateHolder.playPause()
+            return
+        }
 
-                if (shouldResumeRemoteQueue) {
-                    castStateHolder.castPlayer?.play()
-                    playbackStateHolder.updateStablePlayerState {
-                        it.copy(
-                            isPlaying = true,
-                            playWhenReady = true
-                        )
-                    }
-                } else if (localQueue.isNotEmpty() && startSong != null) {
-                    Timber.tag(CAST_LOG_TAG).i(
-                        "Remote queue out of sync. Reloading remote queue (local=%d status=%d snapshot=%d).",
-                        localQueue.size,
-                        remoteMediaClient.mediaStatus?.queueItems?.size ?: 0,
-                        castTransferStateHolder.lastRemoteQueue.size
-                    )
-                    cb.scope.launch {
-                        internalPlaySongs(localQueue, startSong, cb.getUiState().currentQueueSourceName)
-                    }
-                } else if (remoteHasQueue) {
-                    // No local queue available to reconcile; fallback to resuming remote queue.
-                    castStateHolder.castPlayer?.play()
-                    playbackStateHolder.updateStablePlayerState {
-                        it.copy(
-                            isPlaying = true,
-                            playWhenReady = true
-                        )
-                    }
-                } else {
-                    Timber.tag(CAST_LOG_TAG).w("Cannot resume Cast playback: both local and remote queues are empty.")
-                }
-            }
+        if (controller.isPlaying) {
+            controller.pause()
         } else {
-            val controller = cb.getController()
-            if (controller == null || !controller.isConnected) {
-                playbackStateHolder.playPause()
-                return
-            }
-
-            if (controller.isPlaying) {
-                controller.pause()
-            } else {
-                if (controller.currentMediaItem == null) {
-                    val currentQueue = cb.getUiState().currentPlaybackQueue
-                    val currentSong = playbackStateHolder.stablePlayerState.value.currentSong
-                    when {
-                        currentQueue.isNotEmpty() && currentSong != null -> {
-                            cb.scope.launch {
-                                cb.cancelTransitionScheduler()
-                                internalPlaySongs(
-                                    currentQueue.toList(),
-                                    currentSong,
-                                    cb.getUiState().currentQueueSourceName
-                                )
-                            }
+            if (controller.currentMediaItem == null) {
+                val currentQueue = cb.getUiState().currentPlaybackQueue
+                val currentSong = playbackStateHolder.stablePlayerState.value.currentSong
+                when {
+                    currentQueue.isNotEmpty() && currentSong != null -> {
+                        cb.scope.launch {
+                            cb.cancelTransitionScheduler()
+                            internalPlaySongs(
+                                currentQueue.toList(),
+                                currentSong,
+                                cb.getUiState().currentQueueSourceName
+                            )
                         }
-                        currentSong != null -> {
-                            loadAndPlaySong(currentSong)
-                        }
-                        else -> {
-                            cb.scope.launch {
-                                val fallbackSong = musicRepository.getFirstPlayableSong()
-                                if (fallbackSong != null) {
-                                    loadAndPlaySong(fallbackSong)
-                                } else {
-                                    controller.play()
-                                }
+                    }
+                    currentSong != null -> {
+                        loadAndPlaySong(currentSong)
+                    }
+                    else -> {
+                        cb.scope.launch {
+                            val fallbackSong = musicRepository.getFirstPlayableSong()
+                            if (fallbackSong != null) {
+                                loadAndPlaySong(fallbackSong)
+                            } else {
+                                controller.play()
                             }
                         }
                     }
-                } else {
-                    if (controller.playbackState == Player.STATE_IDLE && controller.mediaItemCount > 0) {
-                        controller.prepare()
-                    }
-                    controller.play()
                 }
+            } else {
+                if (controller.playbackState == Player.STATE_IDLE && controller.mediaItemCount > 0) {
+                    controller.prepare()
+                }
+                controller.play()
             }
         }
     }
 
-    private fun hasRemoteQueueItems(remoteMediaClient: RemoteMediaClient): Boolean {
-        val mediaQueueCount = remoteMediaClient.mediaQueue.itemCount
-        val statusQueueCount = remoteMediaClient.mediaStatus?.queueItems?.size ?: 0
-        val snapshotQueueCount = castTransferStateHolder.lastRemoteQueue.size
-        return mediaQueueCount > 0 || statusQueueCount > 0 || snapshotQueueCount > 0
-    }
-
-    private fun remoteQueueMatchesLocalQueue(
-        remoteMediaClient: RemoteMediaClient,
-        localQueue: List<Song>,
-        localStartSong: Song?
-    ): Boolean {
-        if (localQueue.isEmpty()) return true
-
-        val localQueueIds = localQueue.map { it.id }
-        val status = remoteMediaClient.mediaStatus
-        val remoteQueueIdsFromStatus = status
-            ?.queueItems
-            ?.mapNotNull { item ->
-                item.customData
-                    ?.optString("songId")
-                    ?.takeIf { it.isNotBlank() }
-            }
-            .orEmpty()
-        val remoteQueueIdsFromSnapshot = castTransferStateHolder.lastRemoteQueue.map { it.id }
-
-        val queueMatches = when {
-            remoteQueueIdsFromStatus.size == localQueueIds.size ->
-                remoteQueueIdsFromStatus == localQueueIds
-            remoteQueueIdsFromSnapshot.size == localQueueIds.size ->
-                remoteQueueIdsFromSnapshot == localQueueIds
-            remoteQueueIdsFromStatus.isNotEmpty() -> false
-            remoteQueueIdsFromSnapshot.isNotEmpty() -> false
-            else -> false
-        }
-
-        if (!queueMatches) return false
-
-        val expectedSongId = localStartSong?.id ?: return true
-        val remoteCurrentSongId = status
-            ?.let { mediaStatus ->
-                mediaStatus.getQueueItemById(mediaStatus.getCurrentItemId())
-                    ?.customData
-                    ?.optString("songId")
-                    ?.takeIf { it.isNotBlank() }
-            }
-            ?: castTransferStateHolder.lastRemoteSongId
-
-        return remoteCurrentSongId == null || remoteCurrentSongId == expectedSongId
-    }
 }

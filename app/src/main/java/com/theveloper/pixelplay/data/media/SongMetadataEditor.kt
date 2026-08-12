@@ -16,8 +16,6 @@ import com.kyant.taglib.TagLib
 import com.theveloper.pixelplay.data.database.ArtistEntity
 import com.theveloper.pixelplay.data.database.MusicDao
 import com.theveloper.pixelplay.data.database.SongArtistCrossRef
-import com.theveloper.pixelplay.data.database.TelegramDao // Added
-import com.theveloper.pixelplay.data.database.TelegramSongEntity // Added
 import com.theveloper.pixelplay.data.database.serializeArtistRefs
 import com.theveloper.pixelplay.data.model.ArtistRef
 import com.theveloper.pixelplay.data.preferences.UserPreferencesRepository
@@ -26,7 +24,7 @@ import com.theveloper.pixelplay.utils.AlbumArtUtils
 import com.theveloper.pixelplay.utils.LocalArtworkUri
 import com.theveloper.pixelplay.utils.MediaStorePermissionHelper
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first // Added
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.gagravarr.opus.OpusFile
 import org.gagravarr.opus.OpusTags
@@ -86,7 +84,6 @@ private sealed interface ReplayGainUpdate {
 class SongMetadataEditor(
     private val context: Context,
     private val musicDao: MusicDao,
-    private val telegramDao: TelegramDao, // Added
     private val userPreferencesRepository: UserPreferencesRepository
 ) {
 
@@ -286,14 +283,14 @@ class SongMetadataEditor(
                 )
             }
 
-            val isTelegramSong = songId < 0
-            val filePath = if (isTelegramSong) {
+            val isRemoteCachedSong = songId < 0
+            val filePath = if (isRemoteCachedSong) {
                 musicDao.getSongById(songId).first()?.filePath
             } else {
                 getFilePathFromMediaStore(songId)
             }
 
-            if (filePath.isNullOrBlank() && !isTelegramSong) {
+            if (filePath.isNullOrBlank() && !isRemoteCachedSong) {
                 Timber.tag(TAG).e("Could not get file path for songId: $songId")
                 return@withContext SongMetadataEditResult(
                     success = false,
@@ -417,9 +414,9 @@ class SongMetadataEditor(
             }
 
             val fileUpdateSuccess = if (!fileExists) {
-                if (isTelegramSong) {
+                if (isRemoteCachedSong) {
                     Timber.tag(TAG)
-                        .w("METADATA_EDIT: Telegram file not found (streaming?). Skipping file tags, updating DB only.")
+                        .w("METADATA_EDIT: Remote cached file not found. Skipping file tags, updating DB only.")
                     true
                 } else {
                     Timber.tag(TAG).e("METADATA_EDIT: File does not exist: $finalFilePath")
@@ -449,7 +446,7 @@ class SongMetadataEditor(
                                 writeBackSuccess = true
                                 Timber.tag(TAG).d("Successfully wrote metadata directly to raw file path")
                             } else {
-                                val uri = if (!isTelegramSong) MediaStorePermissionHelper.getMediaStoreUri(context, songId) else null
+                                val uri = if (!isRemoteCachedSong) MediaStorePermissionHelper.getMediaStoreUri(context, songId) else null
                                 if (uri != null) {
                                     context.contentResolver.openFileDescriptor(uri, "rwt")?.use { pfd ->
                                         FileOutputStream(pfd.fileDescriptor).use { output ->
@@ -491,21 +488,7 @@ class SongMetadataEditor(
                 )
             }
 
-            if (isTelegramSong) {
-                val songEntity = musicDao.getSongById(songId).first()
-                if (songEntity?.telegramChatId != null && songEntity.telegramFileId != null) {
-                    val telegramId = "${songEntity.telegramChatId}_${songEntity.telegramFileId}"
-                    val telegramSong = telegramDao.getSongsByIds(listOf(telegramId)).first().firstOrNull()
-                    if (telegramSong != null) {
-                        val updatedTelegramSong = telegramSong.copy(
-                            title = newTitle,
-                            artist = newArtist,
-                        )
-                        telegramDao.insertSongs(listOf(updatedTelegramSong))
-                        Timber.d("Updated TelegramDao for song: $telegramId")
-                    }
-                }
-            } else {
+            if (!isRemoteCachedSong) {
                 val mediaStoreSuccess = updateMediaStoreMetadata(
                     songId = songId,
                     title = newTitle,
@@ -668,7 +651,7 @@ class SongMetadataEditor(
     /**
      * Detects the actual audio container by reading the file's magic bytes.
      * Many files in the wild have wrong extensions (e.g. MP4/M4A served as .mp3 by YouTube rippers
-     * or Telegram). Writing ID3v2 tags to an MP4 container corrupts it irreversibly, so the
+     * or older remote cache entries). Writing ID3v2 tags to an MP4 container corrupts it irreversibly, so the
      * tag-writing pipeline must route by real content, not by extension.
      */
     private fun detectContainerFormat(filePath: String): DetectedContainer {

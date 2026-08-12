@@ -44,7 +44,6 @@ data class SyncProgress(
         SAVING_TO_DATABASE,
         SCANNING_LRC,
         CLEANING_CACHE,
-        SYNCING_CLOUD,
         COMPLETING
     }
 
@@ -99,7 +98,7 @@ class SyncManager @Inject constructor(
     }
 
     /**
-     * Schedules the once-a-day heavy maintenance (LRC/cache/cloud). Uses a dedicated unique
+     * Schedules the once-a-day heavy maintenance (LRC/cache). Uses a dedicated unique
      * name distinct from [SyncWorker.WORK_NAME], so it never drives the foreground sync
      * indicator. KEEP preserves the existing schedule across launches.
      */
@@ -189,7 +188,7 @@ class SyncManager @Inject constructor(
     /**
      * Emits `true` while the worker is performing background maintenance that does
      * not gate the user's pull-to-refresh gesture: LRC scanning, album-art cache
-     * cleanup, and cloud-source synchronization. This drives the slim linear
+     * cleanup. This drives the slim linear
      * indicator under [LibraryActionRow].
      */
     val isPerformingMaintenance: Flow<Boolean> = syncProgress
@@ -365,7 +364,6 @@ class SyncManager @Inject constructor(
         private val MAINTENANCE_PHASES = setOf(
             SyncProgress.SyncPhase.SCANNING_LRC,
             SyncProgress.SyncPhase.CLEANING_CACHE,
-            SyncProgress.SyncPhase.SYNCING_CLOUD,
             SyncProgress.SyncPhase.COMPLETING
         )
     }

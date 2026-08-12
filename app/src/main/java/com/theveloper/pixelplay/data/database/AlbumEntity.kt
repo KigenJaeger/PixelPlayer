@@ -32,7 +32,7 @@ data class AlbumEntity(
 fun AlbumEntity.toAlbum(): Album {
     val effectiveAlbumArtUri = when {
         this.albumArtUriString.isNullOrBlank() -> null
-        // Beta 6 stored per-song FileProvider URIs (e.g.
+        // Older builds stored per-song FileProvider URIs (e.g.
         // content://...provider/cache/song_art_<id>.jpg) as the album's
         // representative art. After the v0.7 artwork-pipeline rewrite those
         // cache files no longer exist, so the raw URI 404s. Recover the song

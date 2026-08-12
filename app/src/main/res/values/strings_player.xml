@@ -10,7 +10,6 @@
     <string name="player_connecting">Connecting…</string>
     <string name="player_cd_open_queue">Open Queue</string>    
 
-    <!-- CastBottomSheet -->
     <string name="cast_perm_title">Get ready to connect</string>
     <string name="cast_perm_body">Allow PixelPlayer to see your nearby devices and current Wi‑Fi so we can keep your cast, Bluetooth audio, and speakers in sync.</string>
     <string name="cast_perm_nearby_title">Nearby devices</string>

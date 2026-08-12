@@ -1,15 +1,10 @@
 package com.theveloper.pixelplay.presentation.viewmodel
 
 import androidx.compose.runtime.Immutable
-import com.theveloper.pixelplay.data.model.Album
-import com.theveloper.pixelplay.data.model.Artist
 import com.theveloper.pixelplay.data.model.FolderSource
 import com.theveloper.pixelplay.data.model.MusicFolder
 import com.theveloper.pixelplay.data.model.Song
-import com.theveloper.pixelplay.data.model.SearchResultItem
 import com.theveloper.pixelplay.data.model.SortOption
-import com.theveloper.pixelplay.data.model.SearchFilterType
-import com.theveloper.pixelplay.data.model.SearchHistoryItem
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
@@ -20,12 +15,7 @@ data class PlayerUiState(
     val currentQueueSourceName: String = "All Songs",
     // val albums: ImmutableList<Album> = persistentListOf(), // REMOVED
     // val artists: ImmutableList<Artist> = persistentListOf(), // REMOVED
-    val searchResults: ImmutableList<SearchResultItem> = persistentListOf(),
     val musicFolders: ImmutableList<MusicFolder> = persistentListOf(),
-    val showAiPlaylistSheet: Boolean = false,
-    val isGeneratingAiPlaylist: Boolean = false,
-    val aiStatus: String? = null,
-    val aiError: String? = null,
     val sortOption: SortOption = SortOption.SongDefaultOrder,
     val isLoadingInitialSongs: Boolean = true,
     val isLoadingLibrary: Boolean = true,
@@ -55,11 +45,8 @@ data class PlayerUiState(
     val folderBackGestureNavigationEnabled: Boolean = true,
     val currentSongSortOption: SortOption = SortOption.SongTitleAZ,
     // val songCount: Int = 0, // REMOVED
-    val searchHistory: ImmutableList<SearchHistoryItem> = persistentListOf(),
-    val searchQuery: String = "",
     val isSyncingLibrary: Boolean = false,
-    val selectedSearchFilter: SearchFilterType = SearchFilterType.ALL,
-    val currentStorageFilter: com.theveloper.pixelplay.data.model.StorageFilter = com.theveloper.pixelplay.data.model.StorageFilter.ALL,
+    val currentStorageFilter: com.theveloper.pixelplay.data.model.StorageFilter = com.theveloper.pixelplay.data.model.StorageFilter.OFFLINE,
     val hideLocalMedia: Boolean = false,
     val showQueueItemUndoBar: Boolean = false,
     val lastRemovedQueueSong: Song? = null,

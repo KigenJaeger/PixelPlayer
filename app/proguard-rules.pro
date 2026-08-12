@@ -63,10 +63,6 @@
 
 -keepattributes Signature, InnerClasses, EnclosingMethod, AnnotationDefault, *Annotation*
 
-# Cast framework classes loaded via manifest/reflective entry points.
--keep class com.theveloper.pixelplay.data.service.cast.CastOptionsProvider { *; }
--keep class * implements com.google.android.gms.cast.framework.OptionsProvider
-
 # Gson generic type capture for backup/restore in release builds.
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
@@ -155,21 +151,6 @@
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$ServerProvider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego$ServerProvider
 -dontwarn org.eclipse.jetty.npn.NextProtoNego
-
-# TDLib (Telegram Database Library) rules
--keep class org.drinkless.tdlib.** { *; }
--keep interface org.drinkless.tdlib.** { *; }
-
-# Ktor & Netty Rules (Crucial for StreamProxy)
--keep class org.slf4j.** { *; }
-
-# Ktor Specific
--dontwarn io.ktor.**
--dontwarn kotlinx.coroutines.**
--dontwarn io.netty.**
-
-# Ensure internal server can start
--keep class com.theveloper.pixelplay.data.telegram.TelegramStreamProxy { *; }
 
 # Keep Kotlin reflection if needed by Ktor/Serialization in Release
 -keep class kotlin.reflect.** { *; }

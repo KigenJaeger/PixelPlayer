@@ -53,6 +53,7 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.theveloper.pixelplay.R
+import com.theveloper.pixelplay.ui.theme.ReadableOverlayTheme
 import androidx.compose.ui.text.style.TextOverflow
 
 val predefinedTimes = listOf(0, 5, 10, 15, 20, 30, 45, 60) // 0 represents 'Off'
@@ -111,16 +112,18 @@ fun TimerOptionsBottomSheet(
         }
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 18.dp, vertical = 4.dp)
-                .fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+    ReadableOverlayTheme {
+        ModalBottomSheet(
+            onDismissRequest = onDismiss,
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 18.dp, vertical = 4.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             Box(
                 modifier = Modifier
                     .background(
@@ -397,8 +400,8 @@ fun TimerOptionsBottomSheet(
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
+            }
         }
-    }
 
     if (showCustomTimePicker) {
         val initialHour = 0    // Default to 0 hours for a duration
@@ -447,5 +450,6 @@ fun TimerOptionsBottomSheet(
                 }
             }
         )
+    }
     }
 }

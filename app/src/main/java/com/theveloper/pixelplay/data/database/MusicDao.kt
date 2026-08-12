@@ -64,8 +64,6 @@ private const val SONG_DETAIL_PROJECTION = """
     songs.mime_type AS mime_type,
     songs.bitrate AS bitrate,
     songs.sample_rate AS sample_rate,
-    songs.telegram_chat_id AS telegram_chat_id,
-    songs.telegram_file_id AS telegram_file_id,
     songs.artists_json AS artists_json,
     songs.source_type AS source_type
 """
@@ -76,8 +74,7 @@ private const val SONG_LIST_PROJECTION = """
     id, title, artist_name, artist_id, album_artist, album_name, album_id,
     content_uri_string, album_art_uri_string, duration, genre, file_path,
     parent_directory_path, is_favorite, NULL AS lyrics, track_number, disc_number,
-    year, date_added, mime_type, bitrate, sample_rate, telegram_chat_id,
-    telegram_file_id, artists_json, source_type
+    year, date_added, mime_type, bitrate, sample_rate, artists_json, source_type
 """
 
 data class DeviceCapabilitySongRow(
@@ -99,8 +96,6 @@ data class DeviceCapabilitySongRow(
  */
 data class LibraryAudioStatsRow(
     val totalCount: Int,
-    val localCount: Int,
-    val cloudCount: Int,
     val hiResCount: Int,
     val ultraHiResCount: Int,
     val likelyExpensiveCount: Int,
@@ -238,41 +233,6 @@ interface MusicDao {
     @Query("DELETE FROM lyrics WHERE songId IN (:songIds)")
     suspend fun deleteLyricsBySongIds(songIds: List<Long>)
 
-    @Query("SELECT id FROM songs WHERE source_type = 1")
-    suspend fun getAllTelegramSongIds(): List<Long>
-
-    @Query("""
-        SELECT id FROM songs
-        WHERE source_type = 1
-        AND (telegram_chat_id = :chatId
-             OR content_uri_string LIKE 'telegram://' || :chatId || '/%')
-    """)
-    suspend fun getTelegramSongIdsByChatId(chatId: Long): List<Long>
-
-    @Query("""
-        SELECT s.id FROM songs s
-        INNER JOIN telegram_songs ts
-            ON ts.chat_id = s.telegram_chat_id
-            AND ('telegram://' || ts.chat_id || '/' || ts.message_id) = s.content_uri_string
-        WHERE ts.chat_id = :chatId AND ts.thread_id = :threadId
-    """)
-    suspend fun getTelegramSongIdsByTopicId(chatId: Long, threadId: Long): List<Long>
-
-    @Query("SELECT id FROM songs WHERE source_type = 2")
-    suspend fun getAllNeteaseSongIds(): List<Long>
-
-    @Query("SELECT id FROM songs WHERE source_type = 3")
-    suspend fun getAllGDriveSongIds(): List<Long>
-
-    @Query("SELECT id FROM songs WHERE source_type = 4")
-    suspend fun getAllQqMusicSongIds(): List<Long>
-
-    @Query("SELECT id FROM songs WHERE source_type = 5")
-    suspend fun getAllNavidromeSongIds(): List<Long>
-
-    @Query("SELECT id FROM songs WHERE source_type = 6")
-    suspend fun getAllJellyfinSongIds(): List<Long>
-
     @Transaction
     suspend fun deleteSongsAndRelatedData(songIds: List<Long>) {
         if (songIds.isEmpty()) return
@@ -284,62 +244,6 @@ interface MusicDao {
         }
         deleteOrphanedAlbums()
         deleteOrphanedArtists()
-    }
-
-    @Transaction
-    suspend fun clearAllNeteaseSongs() {
-        val neteaseSongIds = getAllNeteaseSongIds()
-        if (neteaseSongIds.isEmpty()) return
-        deleteSongsAndRelatedData(neteaseSongIds)
-    }
-
-    @Transaction
-    suspend fun clearAllGDriveSongs() {
-        val gdriveSongIds = getAllGDriveSongIds()
-        if (gdriveSongIds.isEmpty()) return
-        deleteSongsAndRelatedData(gdriveSongIds)
-    }
-
-    @Transaction
-    suspend fun clearAllQqMusicSongs() {
-        val qqMusicSongIds = getAllQqMusicSongIds()
-        if (qqMusicSongIds.isEmpty()) return
-        deleteSongsAndRelatedData(qqMusicSongIds)
-    }
-
-    @Transaction
-    suspend fun clearAllNavidromeSongs() {
-        val navidromeSongIds = getAllNavidromeSongIds()
-        if (navidromeSongIds.isEmpty()) return
-        deleteSongsAndRelatedData(navidromeSongIds)
-    }
-
-    @Transaction
-    suspend fun clearAllJellyfinSongs() {
-        val jellyfinSongIds = getAllJellyfinSongIds()
-        if (jellyfinSongIds.isEmpty()) return
-        deleteSongsAndRelatedData(jellyfinSongIds)
-    }
-
-    @Transaction
-    suspend fun clearAllTelegramSongs() {
-        val telegramSongIds = getAllTelegramSongIds()
-        if (telegramSongIds.isEmpty()) return
-        deleteSongsAndRelatedData(telegramSongIds)
-    }
-
-    @Transaction
-    suspend fun clearTelegramSongsForChat(chatId: Long) {
-        val telegramSongIds = getTelegramSongIdsByChatId(chatId)
-        if (telegramSongIds.isEmpty()) return
-        deleteSongsAndRelatedData(telegramSongIds)
-    }
-
-    @Transaction
-    suspend fun clearTelegramSongsForTopic(chatId: Long, threadId: Long) {
-        val songIds = getTelegramSongIdsByTopicId(chatId, threadId)
-        if (songIds.isEmpty()) return
-        deleteSongsAndRelatedData(songIds)
     }
 
     /**
@@ -522,9 +426,6 @@ interface MusicDao {
     @Query("SELECT COUNT(*) FROM songs")
     fun getSongCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM songs WHERE source_type != 0")
-    fun getCloudSongCount(): Flow<Int>
-
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun getSongCountOnce(): Int
 
@@ -549,8 +450,6 @@ interface MusicDao {
     @Query("""
         SELECT
             COUNT(*) AS totalCount,
-            COALESCE(SUM(CASE WHEN source_type = 0 THEN 1 ELSE 0 END), 0) AS localCount,
-            COALESCE(SUM(CASE WHEN source_type != 0 THEN 1 ELSE 0 END), 0) AS cloudCount,
             COALESCE(SUM(CASE WHEN sample_rate > 48000 THEN 1 ELSE 0 END), 0) AS hiResCount,
             COALESCE(SUM(CASE WHEN sample_rate >= 176400 THEN 1 ELSE 0 END), 0) AS ultraHiResCount,
             COALESCE(SUM(CASE
@@ -652,10 +551,6 @@ interface MusicDao {
                 :filterMode = 1
                 AND source_type = 0
             )
-            OR (
-                :filterMode = 2
-                AND source_type != 0
-            )
         )
         ORDER BY parent_directory_path ASC, title ASC
     """)
@@ -673,10 +568,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND source_type != 0
             )
         )
         ORDER BY
@@ -710,10 +601,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND songs.source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
             )
         )
         ORDER BY
@@ -749,10 +636,6 @@ interface MusicDao {
                 :filterMode = 1
                 AND source_type = 0
             )
-            OR (
-                :filterMode = 2
-                AND source_type != 0
-            )
         )
         ORDER BY
             CASE WHEN :sortOrder = 'song_default_order' THEN track_number END ASC,
@@ -787,10 +670,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND source_type != 0
             )
         )
         ORDER BY
@@ -833,10 +712,6 @@ interface MusicDao {
                 :filterMode = 1
                 AND songs.source_type = 0
             )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
-            )
         )
         ORDER BY
             CASE WHEN :sortOrder = 'liked_title_az' THEN songs.title END COLLATE NOCASE ASC,
@@ -870,10 +745,6 @@ interface MusicDao {
                 :filterMode = 1
                 AND songs.source_type = 0
             )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
-            )
         )
         ORDER BY songs.title COLLATE NOCASE ASC
     """)
@@ -893,10 +764,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND songs.source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
             )
         )
         ORDER BY
@@ -933,10 +800,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND songs.source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
             )
         )
     """)
@@ -1098,10 +961,6 @@ interface MusicDao {
                 :filterMode = 1
                 AND songs.source_type = 0
             )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
-            )
         )
         GROUP BY
             albums.id,
@@ -1141,10 +1000,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND songs.source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
             )
         )
         GROUP BY
@@ -1198,10 +1053,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND songs.source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
             )
         )
         GROUP BY
@@ -1404,10 +1255,6 @@ interface MusicDao {
                 :filterMode = 1
                 AND songs.source_type = 0
             )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
-            )
         )
         GROUP BY artists.id
         ORDER BY
@@ -1437,10 +1284,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND songs.source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
             )
         )
         GROUP BY artists.id
@@ -1862,10 +1705,6 @@ interface MusicDao {
             OR (
                 :filterMode = 1
                 AND songs.source_type = 0
-            )
-            OR (
-                :filterMode = 2
-                AND songs.source_type != 0
             )
         )
         GROUP BY artists.id

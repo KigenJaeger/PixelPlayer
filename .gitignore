@@ -1,51 +1,35 @@
-*.iml
-.DS_Store
-hs_err_pid*.log
-*.salive
+# Build output
+.gradle/
+.kotlin/
+build/
+*/build/
+.cxx/
+.externalNativeBuild/
+dist/
+local.properties
+*.jks
+*.keystore
 *.apk
 *.aab
-**.jks
 
-.gradle
-.gradle-local/
-.gradle-temp/
-.kotlin/
-/local.properties
-local.properties
-keystore.properties
+# Old unused modules kept off GitHub. PPlayer builds the full phone app plus shared.
+/app-lite/
+/wear/
+/baselineprofile/
+/remote-config/
+/CHANGELOG.md
+/message.txt
+/.idea/
+/Player3/
+/tools/
 
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-/.idea/planningMode.xml
+# GitHub is used only for source hosting; builds stay local.
+.github/workflows/
 
-/build
-/captures
-.externalNativeBuild
-.cxx
-benchmark-results/
+hs_err_pid*.log
 
-app/build/
-app/release/
-wear/build/
-wear/release/
-shared/build/
-baselineprofile/build/
-
-misc.xml
-CLAUDE.md
-markdown.xml
-.vscode/
-.agents/
-
-# Node/tooling dependencies and local env files
-**/node_modules/
-**/dist/
-**/.vite/
-**/.understand-anything/
-**/.env
-**/.env.*
-!**/.env.example
+# Local image-analysis files
+_tmp_random_button.jpg
+shuffle-button-reference.png
+_github-desktop-prompt.png
+_commit-error.png

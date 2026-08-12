@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.theveloper.pixelplay.presentation.viewmodel.PlayerViewModel
+import com.theveloper.pixelplay.presentation.navigation.Screen
 import com.theveloper.pixelplay.presentation.navigation.isMainRootRoute
 import androidx.lifecycle.compose.currentStateAsState
 
@@ -104,15 +105,24 @@ fun ScreenWrapper(
     val disableBlurAllOver by playerViewModel.disableBlurAllOver.collectAsState()
 
     val transition = animatedVisibilityScope?.transition
+    val isTranslucentTheme = MaterialTheme.colorScheme.background.alpha < 0.1f
+    val needsReadableSettingsBackground = isTranslucentTheme && isSettingsReadableBackgroundRoute(myRoute)
+    val allowRoundedDepthEffects = !isTranslucentTheme || needsReadableSettingsBackground
+    val screenBackgroundColor =
+        if (needsReadableSettingsBackground) {
+            MaterialTheme.colorScheme.background.copy(alpha = 0.92f)
+        } else {
+            MaterialTheme.colorScheme.background
+        }
 
     // Declarative Animations
-    val targetRadius = if (shouldRunDepthEffects && !isResumed) 32f else 0f
+    val targetRadius = if (shouldRunDepthEffects && allowRoundedDepthEffects && !isResumed) 32f else 0f
     val animatedCornerRadius = if (transition != null) {
         val animatedValue by transition.animateFloat(
             transitionSpec = { tween(durationMillis = 350, easing = FastOutSlowInEasing) },
             label = "cornerRadius"
         ) { state ->
-            if (shouldRunDepthEffects && (state == EnterExitState.PostExit || state == EnterExitState.PreEnter)) {
+            if (shouldRunDepthEffects && allowRoundedDepthEffects && (state == EnterExitState.PostExit || state == EnterExitState.PreEnter)) {
                 32f
             } else {
                 0f
@@ -128,7 +138,10 @@ fun ScreenWrapper(
     }
 
     // Dim: If strictly behind Top -> 0.4f (or 0.75f if blur is disabled). Else -> 0f.
-    val targetDim = if (shouldRunDepthEffects && shouldDim) {
+    // When the theme background is translucent (custom background enabled), suppress the dim
+    // overlay — a dark scrim on a transparent surface creates an ugly black smudge.
+
+    val targetDim = if (shouldRunDepthEffects && shouldDim && !isTranslucentTheme) {
         if (disableBlurAllOver) 0.75f else 0.4f
     } else {
         0f
@@ -138,7 +151,7 @@ fun ScreenWrapper(
             transitionSpec = { tween(durationMillis = 350, easing = CubicBezierEasing(0.5f, 0f, 0.8f, 0.2f)) },
             label = "dimAlpha"
         ) { state ->
-            if (shouldRunDepthEffects && shouldDim && (state == EnterExitState.PostExit || state == EnterExitState.PreEnter)) {
+            if (shouldRunDepthEffects && shouldDim && !isTranslucentTheme && (state == EnterExitState.PostExit || state == EnterExitState.PreEnter)) {
                 if (disableBlurAllOver) 0.75f else 0.4f
             } else {
                 0f
@@ -154,13 +167,13 @@ fun ScreenWrapper(
     }
 
     // Blur: If strictly behind Top -> 24dp. Else -> 0dp. Disabled if disableBlurAllOver is true.
-    val targetBlur = if (shouldRunDepthEffects && shouldDim && !disableBlurAllOver) 24f else 0f
+    val targetBlur = if (shouldRunDepthEffects && shouldDim && !isTranslucentTheme && !disableBlurAllOver) 24f else 0f
     val animatedBlurRadius = if (transition != null) {
         val animatedValue by transition.animateDp(
             transitionSpec = { tween(durationMillis = 350, easing = CubicBezierEasing(0.5f, 0f, 0.8f, 0.2f)) },
             label = "blurRadius"
         ) { state ->
-            if (shouldRunDepthEffects && shouldDim && !disableBlurAllOver && (state == EnterExitState.PostExit || state == EnterExitState.PreEnter)) {
+            if (shouldRunDepthEffects && shouldDim && !isTranslucentTheme && !disableBlurAllOver && (state == EnterExitState.PostExit || state == EnterExitState.PreEnter)) {
                 24.dp
             } else {
                 0.dp
@@ -199,7 +212,7 @@ fun ScreenWrapper(
                 }
             }
             .blur(radius = if (shouldRunDepthEffects) animatedBlurRadius else 0.dp)
-            .background(MaterialTheme.colorScheme.background)
+            .background(screenBackgroundColor)
     ) {
         content()
 
@@ -211,4 +224,15 @@ fun ScreenWrapper(
                 .background(Color.Black)
         )
     }
+}
+
+private fun isSettingsReadableBackgroundRoute(route: String?): Boolean = when (route) {
+    Screen.SettingsCategory.route,
+    Screen.PaletteStyle.route,
+    Screen.About.route,
+    Screen.ArtistSettings.route,
+    Screen.DelimiterConfig.route,
+    Screen.WordDelimiterConfig.route,
+    Screen.Equalizer.route -> true
+    else -> false
 }

@@ -1,42 +1,12 @@
-import java.io.File
 import java.util.Properties
-import javax.inject.Inject
-import org.gradle.api.DefaultTask
-import org.gradle.api.file.DirectoryProperty
-import org.gradle.api.file.FileSystemOperations
-import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.tasks.InputFile
-import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.TaskAction
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.aboutlibraries)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.dagger.hilt.android)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.baselineprofile)
     id("kotlin-parcelize")
-}
-
-abstract class CopyThirdPartyNotices : DefaultTask() {
-    @get:InputFile
-    abstract val sourceFile: RegularFileProperty
-
-    @get:OutputDirectory
-    abstract val outputDirectory: DirectoryProperty
-
-    @get:Inject
-    abstract val fileSystemOperations: FileSystemOperations
-
-    @TaskAction
-    fun copyNotice() {
-        fileSystemOperations.copy {
-            from(sourceFile)
-            into(outputDirectory)
-        }
-    }
 }
 
 // Load keystore properties early to avoid unresolved references inside the android block
@@ -47,26 +17,13 @@ val keystoreProperties = Properties().apply {
     }
 }
 
-val localProperties = Properties().apply {
-    val propFile = rootProject.file("local.properties")
-    if (propFile.exists()) {
-        propFile.inputStream().use { load(it) }
-    }
-}
-
 val enableAbiSplits = providers.gradleProperty("pixelplay.enableAbiSplits")
-    .getOrElse("true")
+    .getOrElse("false")
     .toBoolean()
 
 val enableComposeCompilerReports = providers.gradleProperty("pixelplay.enableComposeCompilerReports")
     .getOrElse("false")
     .toBoolean()
-
-val generatedNoticesAssets = layout.buildDirectory.dir("generated/assets/thirdPartyNotices")
-val copyThirdPartyNotices = tasks.register<CopyThirdPartyNotices>("copyThirdPartyNotices") {
-    sourceFile.set(rootProject.layout.projectDirectory.file("THIRD_PARTY_NOTICES.md"))
-    outputDirectory.set(generatedNoticesAssets)
-}
 
 @Suppress("DEPRECATION")
 android {
@@ -77,10 +34,6 @@ android {
         getByName("androidTest") {
             assets.directories.add(file("$projectDir/schemas").path)
         }
-    }
-
-    androidResources {
-        noCompress.add("tflite")
     }
 
     packaging {
@@ -108,13 +61,12 @@ android {
         versionName = (project.findProperty("APP_VERSION_NAME") as? String) ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        val telegramApiId = localProperties.getProperty("TELEGRAM_API_ID")?.ifEmpty { null }
-            ?: "2040"
-        val telegramApiHash = localProperties.getProperty("TELEGRAM_API_HASH")?.ifEmpty { null }
-            ?: "b18441a1ff607e10a989891a5462e627"
-        buildConfigField("int", "TELEGRAM_API_ID", telegramApiId)
-        buildConfigField("String", "TELEGRAM_API_HASH", "\"$telegramApiHash\"")
+        resourceConfigurations += listOf("en", "zh-rCN")
+        if (!enableAbiSplits) {
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
+        }
     }
 
     signingConfigs {
@@ -145,12 +97,6 @@ android {
                 "proguard-rules.pro"
             )
         }
-
-        create("benchmark") {
-            initWith(getByName("release"))
-            matchingFallbacks += listOf("release")
-            isDebuggable = false
-        }
     }
 
     compileOptions {
@@ -178,7 +124,7 @@ android {
             isEnable = enableAbiSplits
             reset()
             if (enableAbiSplits) {
-                include("arm64-v8a", "armeabi-v7a")
+                include("arm64-v8a")
                 isUniversalApk = false
             }
         }
@@ -191,25 +137,8 @@ android {
     }
 }
 
-androidComponents {
-    onVariants(selector().all()) { variant ->
-        variant.sources.assets?.addGeneratedSourceDirectory(
-            copyThirdPartyNotices,
-            CopyThirdPartyNotices::outputDirectory,
-        )
-    }
-}
-
 composeCompiler {
     // StrongSkipping is now enabled by default.
-}
-
-baselineProfile {
-    // Keep release builds fast to invoke locally, but make generated profiles usable as
-    // startup dex-layout input once they are checked into the app.
-    automaticGenerationDuringBuild = false
-    saveInSrc = true
-    dexLayoutOptimization = true
 }
 
 ksp {
@@ -239,8 +168,6 @@ kotlin {
 dependencies {
     // Core & Optimization
     coreLibraryDesugaring(libs.desugar.jdk.libs)
-    implementation(libs.androidx.profileinstaller)
-    "baselineProfile"(project(":baselineprofile"))
 
     // AndroidX & Compose
     implementation(libs.androidx.core.ktx)
@@ -263,8 +190,6 @@ dependencies {
     implementation(libs.androidx.ui.text.google.fonts)
     implementation(libs.material)
     implementation(libs.androidx.appcompat)
-    implementation(libs.aboutlibraries.core)
-    implementation(libs.aboutlibraries.compose.m3)
 
     // DI & Navigation
     implementation(libs.hilt.android)
@@ -291,8 +216,6 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.exoplayer.ffmpeg)
     implementation(libs.androidx.media3.exoplayer.midi)
-    implementation(libs.androidx.media3.transformer)
-    implementation(libs.androidx.mediarouter)
     implementation(libs.androidx.media)
     implementation(libs.coil.compose)
     implementation(libs.taglib)
@@ -309,26 +232,14 @@ dependencies {
     implementation(libs.gson)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.collections.immutable)
-    implementation(libs.ktor.server.core)
-    implementation(libs.ktor.server.cio)
 
     // Identity & Background
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.play.services.wearable)
-    implementation(libs.kotlinx.coroutines.play.services)
-    implementation(libs.credentials)
-    implementation(libs.credentials.play.services.auth)
-    implementation(libs.googleid)
-    implementation(libs.androidx.security.crypto)
-    implementation(libs.google.play.services.cast.framework)
-    implementation(libs.tdlib)
 
     // UI Utilities & Extra
     implementation(libs.timber)
-    implementation(libs.generativeai)
     implementation(libs.smooth.corner.rect.android.compose)
     implementation(libs.reorderables)
-    implementation(libs.codeview)
     implementation(libs.androidx.glance)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
@@ -343,9 +254,6 @@ dependencies {
         exclude(group = "androidx.compose.runtime")
         exclude(group = "androidx.compose.ui")
     }
-
-    // Projects
-    implementation(project(":shared"))
 
     // Testing (Unit)
     testImplementation(libs.junit.jupiter.api)
@@ -388,8 +296,6 @@ dependencies {
         implementation(libs.netty.handler)
         implementation(libs.netty.codec.http)
         implementation(libs.netty.codec.http2)
-        implementation(libs.bouncycastle.bcprov)
-        implementation(libs.bouncycastle.bcpkix)
         implementation(libs.commons.lang3)
         implementation(libs.jdom2)
         implementation(libs.jose4j)
